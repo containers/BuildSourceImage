@@ -18,7 +18,7 @@ RELEASE=$(rpm -q --queryformat "%{VERSION}\n" --root $IMAGE_MNT -f /etc/os-relea
 #
 # From the executable image, list the SRC RPMS used to build the image
 # 
-SRC_RPMS=$(rpm -qa --root ${IMAGE_MNT} --queryformat '%{SOURCERPM}\n' | grep -v '(none)' | sort -u)
+SRC_RPMS=$(rpm -qa --root ${IMAGE_MNT} --queryformat '%{SOURCERPM}\n' | grep -v '^gpg-pubkey' | sort -u)
 
 #
 # Create directory in source container image for RPMS
