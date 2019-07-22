@@ -35,7 +35,7 @@ for i in ${SRC_RPMS}; do
     echo "Adding $i"
     touch --date='@0' $i
     buildah add --add-history ${SRC_CTR} $i /RPMS
-    export IMG=$(buildah commit --rm ${SRC_CTR} $i)
+    export IMG=$(buildah commit --disable-compression --rm ${SRC_CTR} $i)
     export SRC_CTR=$(buildah from ${IMG})
 done
 popd
