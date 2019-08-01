@@ -3,13 +3,17 @@
 # This script requires an OCI IMAGE Name to pull.
 # The script generates a SOURCE Image based on the OCI Image
 # Script must be executed on the same OS or newer as the image.
-IMAGE=$1
-SRC_RPM_DIR=SRCRPMS
-SRC_IMAGE=$1-src
-CONTEXT_DIR=$2
-EXTRA_SRC_DIR=$3
-IMAGE_CTR=$(buildah from ${IMAGE})
-IMAGE_MNT=$(buildah mount ${IMAGE_CTR})
+if test $# -lt 2 ; then
+    echo Usage: $(basename $0) IMAGE CONTEXT_DIR [EXTRA_SRC_DIR]
+    exit 1
+fi
+export IMAGE=$1
+export SRC_RPM_DIR=$(pwd)/SRCRPMS
+export SRC_IMAGE=$1-src
+export CONTEXT_DIR=$2
+export EXTRA_SRC_DIR=$3
+export IMAGE_CTR=$(buildah from ${IMAGE})
+export IMAGE_MNT=$(buildah mount ${IMAGE_CTR})
 #
 # From the executable image, get the RELEASEVER of the image
 #
@@ -25,7 +29,8 @@ buildah rm ${IMAGE_CTR}
 # For each SRC_RPMS used to build the executable image, download the SRC RPM
 # and generate a layer in the SRC RPM.
 #
-pushd ${SRC_RPM_DIR}
+mkdir -p ${SRC_RPM_DIR}
+pushd ${SRC_RPM_DIR} > /dev/null
 export SRC_CTR=$(buildah from scratch)
 for i in ${SRC_RPMS}; do
     if [ ! -f $i ]; then
@@ -33,19 +38,22 @@ for i in ${SRC_RPMS}; do
 	dnf download --release $RELEASE --source $RPM || continue
     fi
     echo "Adding $i"
-    touch --date='@0' $i
-    buildah add --add-history ${SRC_CTR} $i /RPMS
-    export IMG=$(buildah commit --disable-compression --rm ${SRC_CTR} $i)
+    touch --date=@`rpm -q --qf '%{buildtime}' $i` $i
+    buildah add ${SRC_CTR} $i /RPMS/
+    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(sha256sum $i | cut -f1 -d' ') in /RPMS" ${SRC_CTR}
+    export IMG=$(buildah commit --omit-timestamp --disable-compression --rm ${SRC_CTR})
     export SRC_CTR=$(buildah from ${IMG})
 done
-popd
+popd > /dev/null
 #
 # If the caller specified a context directory,
 # add it to the CONTEXT DIR in SRC IMAGE
 #
 if [ ! -z "${CONTEXT_DIR}" ]; then
-    buildah add --add-history ${SRC_CTR} ${CONTEXT_DIR} /CONTEXT
-    export IMG=$(buildah commit --rm $SRC_CTR $1_$(echo $(CONTEXT_DIR) | sed 's|/|_|g'))
+    CONTEXT_DIR=$(cd ${CONTEXT_DIR}; pwd)
+    buildah add ${SRC_CTR} ${CONTEXT_DIR} /CONTEXT
+    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(cd ${CONTEXT_DIR}; tar cf - . | sha256sum -| cut -f1 -d' ') in /CONTEXT" ${SRC_CTR}
+    export IMG=$(buildah commit --omit-timestamp --rm ${SRC_CTR})
     export SRC_CTR=$(buildah from ${IMG})
 fi
 
@@ -54,8 +62,9 @@ fi
 # add it to the CONTEXT DIR in SRC IMAGE
 #
 if [ ! -z "${EXTRA_SRC_DIR}" ]; then
-    buildah add --add-history ${SRC_CTR} ${EXTRA_SRC_DIR} /EXTRA
-    export IMG=$(buildah commit --rm $EXTRA_SRC_CTR $1_$(echo $(CONTEXT_DIR) | sed 's|/|_|g'))
+    buildah add ${SRC_CTR} ${EXTRA_SRC_DIR} /EXTRA
+    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(cd ${EXTRA_SRC_DIR}; tar cf - . | sha256sum -| cut -f1 -d' ') in /CONTEXT" ${SRC_CTR}
+    export IMG=$(buildah commit --omit-timestamp --rm ${EXTRA_SRC_CTR})
     export SRC_CTR=$(buildah from ${IMG})
 fi
 
@@ -63,7 +72,7 @@ fi
 buildah rm ${SRC_CTR}
 
 #
-# Commit the SRC_CTR TO a SRC_IMAGE
+# Add the final name to our image
 #
 buildah tag $IMG $SRC_IMAGE
 
