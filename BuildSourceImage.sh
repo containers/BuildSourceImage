@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # This script requires an OCI IMAGE Name to pull.
 # The script generates a SOURCE Image based on the OCI Image
 # Script must be executed on the same OS or newer as the image.
