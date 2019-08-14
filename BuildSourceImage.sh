@@ -76,5 +76,14 @@ buildah rm ${SRC_CTR}
 #
 buildah tag $IMG $SRC_IMAGE
 
+## if an output directory is provided then save a copy to it
+## XXX(vbatts) this is not working inside a container like `quay.io/buildah/stable` yet
+if [ -n "${OUTPUT_DIR}" ] ; then
+    mkdir -p "${OUTPUT_DIR}"
+    skopeo copy containers-storage:"${IMG}" oci:"${OUTPUT_DIR}"/
+fi
+
 # Push SRC_IMAGE to Registry
 # buildah push $SRC_IMAGE REGISTRY_NAME/$SRC_IMAGE
+
+# vim:set shiftwidth=4 softtabstop=4 expandtab:
