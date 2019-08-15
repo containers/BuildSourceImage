@@ -32,15 +32,15 @@ buildah rm ${IMAGE_CTR}
 mkdir -p ${SRC_RPM_DIR}
 pushd ${SRC_RPM_DIR} > /dev/null
 export SRC_CTR=$(buildah from scratch)
-for i in ${SRC_RPMS}; do
-    if [ ! -f $i ]; then
-	RPM=$(echo $i | sed 's/.src.rpm$//g')
+for srpm in ${SRC_RPMS}; do
+    if [ ! -f ${srpm} ]; then
+	RPM=$(echo ${srpm} | sed 's/.src.rpm$//g')
 	dnf download --release $RELEASE --source $RPM || continue
     fi
-    echo "Adding $i"
-    touch --date=@`rpm -q --qf '%{buildtime}' $i` $i
-    buildah add ${SRC_CTR} $i /RPMS/
-    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(sha256sum $i | cut -f1 -d' ') in /RPMS" ${SRC_CTR}
+    echo "Adding ${srpm}"
+    touch --date=@`rpm -q --qf '%{buildtime}' ${srpm}` ${srpm}
+    buildah add ${SRC_CTR} ${srpm} /RPMS/
+    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(sha256sum ${srpm} | cut -f1 -d' ') in /RPMS" ${SRC_CTR}
     export IMG=$(buildah commit --omit-timestamp --disable-compression --rm ${SRC_CTR})
     export SRC_CTR=$(buildah from ${IMG})
 done
