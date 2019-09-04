@@ -14,6 +14,7 @@ _usage() {
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
+    echo -e "       -r <path>\tdirectory of RPMS to add. Can be provided via RPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -l\t\tlist the source drivers available"
@@ -78,7 +79,7 @@ _mktemp() {
 
 # local rm -rf
 _rm_rf() {
-    debug "rm -rf $@"
+    _debug "rm -rf $@"
     #rm -rf $@
 }
 
@@ -91,20 +92,22 @@ _tar() {
     fi
 }
 
-#
 # output things, only when $DEBUG is set
-#
-debug() {
+_debug() {
     if [ -n "${DEBUG}" ] ; then
         echo "[${ABV_NAME}][DEBUG] ${@}"
     fi
 }
 
-#
 # general echo but with prefix
-#
-info() {
+_info() {
     echo "[${ABV_NAME}][INFO] ${@}"
+}
+
+# general echo but with prefix
+_error() {
+    echo "[${ABV_NAME}][ERROR] ${@}" >&2
+    exit 1
 }
 
 #
@@ -291,7 +294,7 @@ unpack_img_bash() {
             fi
         done
 
-        info "[unpacking] layer ${dgst}"
+        _info "[unpacking] layer ${dgst}"
         # unpack layer to rootfs (without whiteouts)
         zcat "${path}" | _tar --restrict --no-xattr --no-acls --no-selinux --exclude='*.wh.*' -x -C "${unpack_dir}"
 
@@ -307,7 +310,7 @@ unpack_img_umoci() {
     local image_dir="${1}"
     local unpack_dir="${2}"
 
-    debug "unpackging with umoci"
+    _debug "unpackging with umoci"
     # always assume we're not root I reckon
     umoci unpack --rootless --image "${image_dir}" "${unpack_dir}" >&2
 }
@@ -393,9 +396,9 @@ layout_insert() {
     local mnfst_list="${out_dir}/index.json"
     # get the digest to the manifest
     test -f "${mnfst_list}" || return 1
-    local mnfst_dgst="$(cat ${mnfst_list} | jq '
+    local mnfst_dgst="$(cat ${mnfst_list} | jq --arg tag "${image_tag}" '
         .manifests[]
-        |  select(.annotations."org.opencontainers.image.ref.name" == "'${image_tag}'")
+        |  select(.annotations."org.opencontainers.image.ref.name" == $tag )
         | .digest
     ' | tr -d \" | tr -d '\n' )"
     local mnfst="${out_dir}/blobs/${mnfst_dgst/:/\/}"
@@ -435,17 +438,17 @@ layout_insert() {
     local tmpconfig="$(_mktemp)"
     cat "${out_dir}/blobs/${config_sum/:/\/}" | jq -c \
         --arg date "$(_date_ns)" \
-        --arg tmptar_sum "${tmptar_sum}" \
-        --arg sum "${sum}" \
+        --arg tmptar_sum "sha256:${tmptar_sum}" \
+        --arg comment "#(nop) BuildSourceImage adding artifact: ${sum}" \
         '
-        .created = "$date"
+        .created = $date
         | .rootfs.diff_ids = .rootfs.diff_ids + [
-            "sha256:$tmptar_sum"
+            sha256:$tmptar_sum
         ]
         | .history = .history + [
             {
-                "created": "$date",
-                "created_by": "#(nop) BuildSourceImage adding artifact: $sum"
+                "created": $date,
+                "created_by": $comment
             }
         ]
         ' > "${tmpconfig}"
@@ -459,24 +462,24 @@ layout_insert() {
     # append layers list in the manifest, and its new config mapping
     local tmpmnfst="$(_mktemp)"
     cat "${mnfst}" | jq -c \
-        --arg tmpconfig_sum "${tmpconfig_sum}" \
+        --arg tmpconfig_sum "sha256:${tmpconfig_sum}" \
         --arg tmpconfig_size "${tmpconfig_size}" \
-        --arg tmptar_sum "${tmptar_sum}" \
+        --arg tmptar_sum "sha256:${tmptar_sum}" \
         --arg tmptar_size "${tmptar_size}" \
         --arg artifact "$(basename ${artifact_path})" \
-        --arg sum "${sum}" \
+        --arg sum "sha256:${sum}" \
         '
-        .config.digest = "sha256:$tmpconfig_sum"
+        .config.digest = sha256:$tmpconfig_sum
         | .config.size = $tmpconfig_size
         | .layers = .layers + [
             {
                 "mediaType": "application/vnd.oci.image.layer.v1.tar",
                 "size": $tmptar_size,
-                "digest": "sha256:$tmptar_sum",
+                "digest": $tmptar_sum,
                 "annotations": {
                     "com.redhat.layer.type": "source",
-                    "com.redhat.layer.content": "$artifact",
-                    "com.redhat.layer.content.checksum": "sha256:$sum"
+                    "com.redhat.layer.content": $artifact,
+                    "com.redhat.layer.content.checksum": $sum
                 }
             }
         ]
@@ -534,6 +537,7 @@ layout_insert() {
 # driver to determine and fetch source rpms, based on the rootfs
 #
 sourcedriver_rpm_fetch() {
+    local self="${0#sourcedriver_*}"
     local ref="${1}"
     local rootfs="${2}"
     local out_dir="${3}"
@@ -546,10 +550,7 @@ sourcedriver_rpm_fetch() {
     for srcrpm in $(rpm -qa --root ${rootfs} --queryformat '%{SOURCERPM}\n' | grep -v '^gpg-pubkey' | sort -u) ; do
         local rpm=${srcrpm%*.src.rpm}
         if [ ! -f "${out_dir}/${srcrpm}" ] ; then
-            info "--> fetching ${srcrpm}"
-            # XXX i wonder if all the srcrpms could be downloaded at once,
-            # rather than serial. This would require building a new list of
-            # files that are not present in ${out_dir}.
+            _info "--> fetching ${srcrpm}"
             dnf download \
                 --quiet \
                 --installroot "${rootfs}" \
@@ -558,7 +559,7 @@ sourcedriver_rpm_fetch() {
                 --source \
                 "${rpm}" || continue
         else
-            info "--> using cached ${srcrpm}"
+            _info "--> using cached ${srcrpm}"
         fi
 
         # XXX one day, check and confirm with %{sourcepkgid}
@@ -572,21 +573,37 @@ sourcedriver_rpm_fetch() {
         local source_info="${manifest_dir}/${srcrpm}.json"
         jq \
             -n \
-            --arg name ${srcrpm} \
+            --arg name "${srcrpm}" \
             --arg buildtime "${srcrpm_buildtime}" \
             --arg mimetype "${mimetype}" \
             '
-                    {
-                        "name" : $name,
-                        "annotations": {
-                            "source.mediaType": $mimetype,
-                            "source.mediaType": $mimetype,
-                            "source.artifact.buildtime": $buildtime
-                        }
+                {
+                    "source.artifact.name": $name,
+                    "source.artifact.mimetype": $mimetype,
+                    "source.artifact.buildtime": $buildtime
                 }
             ' \
             > "${source_info}"
+        ret=$?
+        if [ $ret -ne 0 ] ; then
+            return 1
+        fi
     done
+}
+
+#
+# driver to only package rpms from a provided rpm directory
+#
+sourcedriver_rpm_dir() {
+    local self="${0#sourcedriver_*}"
+    local ref="${1}"
+    local rootfs="${2}"
+    local out_dir="${3}"
+    local manifest_dir="${4}"
+
+    if [ -n "${RPM_DIR}" ]; then
+        _debug "$self: writing to $out_dir and $manifest_dir"
+    fi
 }
 
 #
@@ -595,18 +612,36 @@ sourcedriver_rpm_fetch() {
 # slightly special driver, as it has a flag/env passed in, that it uses
 #
 sourcedriver_context_dir() {
+    local self="${0#sourcedriver_*}"
     local ref="${1}"
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
 
-if [ -n "${CONTEXT_DIR}" ]; then
-    context_dir=$(cd ${CONTEXT_DIR}; pwd)
-    buildah add ${SRC_CTR} ${context_dir} /CONTEXT
-    buildah config --created-by "/bin/sh -c #(nop) ADD file:$(cd ${context_dir}; _tar -cf - . | sha256sum -| cut -f1 -d' ') in /CONTEXT" ${SRC_CTR}
-    export IMG=$(buildah commit --omit-timestamp --rm ${SRC_CTR})
-    export SRC_CTR=$(buildah from ${IMG})
-fi
+    if [ -n "${CONTEXT_DIR}" ]; then
+        _debug "$self: writing to $out_dir and $manifest_dir"
+        local tarname="context.tar"
+        _tar -C "${CONTEXT_DIR}" \
+            --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
+            -cf "${out_dir}/${tarname}" .
+        local mimetype="$(file --brief --mime-type ${out_dir}/${tarname})"
+        local source_info="${manifest_dir}/${tarname}.json"
+        jq \
+            -n \
+            --arg name "${tarname}" \
+            --arg mimetype "${mimetype}" \
+            '
+                {
+                    "source.artifact.name": $name,
+                    "source.artifact.mimetype": $mimetype
+                }
+            ' \
+            > "${source_info}"
+        ret=$?
+        if [ $ret -ne 0 ] ; then
+            return 1
+        fi
+    fi
 }
 
 #
@@ -615,12 +650,35 @@ fi
 # slightly special driver, as it has a flag/env passed in, that it uses
 #
 sourcedriver_extra_src_dir() {
+    local self="${0#sourcedriver_*}"
     local ref="${1}"
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
 
     if [ -n "${EXTRA_SRC_DIR}" ]; then
+        _debug "$self: writing to $out_dir and $manifest_dir"
+        local tarname="extra-src.tar"
+        _tar -C "${EXTRA_SRC_DIR}" \
+            --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
+            -cf "${out_dir}/${tarname}" .
+        local mimetype="$(file --brief --mime-type ${out_dir}/${tarname})"
+        local source_info="${manifest_dir}/${tarname}.json"
+        jq \
+            -n \
+            --arg name "${tarname}" \
+            --arg mimetype "${mimetype}" \
+            '
+                {
+                    "source.artifact.name": $name,
+                    "source.artifact.mimetype": $mimetype
+                }
+            ' \
+            > "${source_info}"
+        ret=$?
+        if [ $ret -ne 0 ] ; then
+            return 1
+        fi
     fi
 }
 
@@ -630,7 +688,7 @@ main() {
 
     local base_dir="$(pwd)/${ABV_NAME}"
     # using the bash builtin to parse
-    while getopts ":hplDc:e:o:b:d:" opts; do
+    while getopts ":hplDc:r:e:o:b:d:" opts; do
         case "${opts}" in
             b)
                 base_dir="${OPTARG}"
@@ -640,6 +698,9 @@ main() {
                 ;;
             e)
                 local extra_src_dir=${OPTARG}
+                ;;
+            r)
+                local rpm_dir=${OPTARG}
                 ;;
             o)
                 local output_dir=${OPTARG}
@@ -673,6 +734,7 @@ main() {
 
     export CONTEXT_DIR="${CONTEXT_DIR:-$context_dir}"
     export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$extra_src_dir}"
+    export RPM_DIR="${RPM_DIR:-$rpm_dir}"
 
     local output_dir="${OUTPUT_DIR:-$output_dir}"
     local src_dir="${base_dir}/src"
@@ -685,13 +747,13 @@ main() {
     mkdir -p "${TMPDIR}"
 
     IMAGE_REF="${1}"
-    debug "IMAGE_REF: ${IMAGE_REF}"
+    _debug "IMAGE_REF: ${IMAGE_REF}"
 
     IMAGE_REF_BASE="$(parse_img_base ${IMAGE_REF})"
-    debug "IMAGE_REF_BASE: ${IMAGE_REF_BASE}"
+    _debug "IMAGE_REF_BASE: ${IMAGE_REF_BASE}"
 
     IMAGE_TAG="$(parse_img_tag ${IMAGE_REF})"
-    debug "IMAGE_TAG: ${IMAGE_TAG}"
+    _debug "IMAGE_TAG: ${IMAGE_TAG}"
 
     IMAGE_DIGEST="$(parse_img_digest ${IMAGE_REF})"
     # determine missing digest before fetch, so that we fetch the precise image
@@ -699,7 +761,7 @@ main() {
     if [ -z "${IMAGE_DIGEST}" ] ; then
         IMAGE_DIGEST="$(fetch_img_digest ${IMAGE_REF_BASE}:${IMAGE_TAG})"
     fi
-    debug "IMAGE_DIGEST: ${IMAGE_DIGEST}"
+    _debug "IMAGE_DIGEST: ${IMAGE_DIGEST}"
 
     # if inspect and fetch image, then to an OCI layout dir
     if [ ! -d "${work_dir}/layouts/${IMAGE_DIGEST/:/\/}" ] ; then
@@ -708,14 +770,14 @@ main() {
     else
         img_layout="${work_dir}/layouts/${IMAGE_DIGEST/:/\/}:${IMAGE_TAG}"
     fi
-    debug "image layout: ${img_layout}"
+    _debug "image layout: ${img_layout}"
 
     # setup rootfs, from that OCI layout
     local unpack_dir="${work_dir}/unpacked/${IMAGE_DIGEST/:/\/}"
     if [ ! -d "${unpack_dir}" ] ; then
         unpack_img ${img_layout} ${unpack_dir}
     fi
-    debug "unpacked dir: ${unpack_dir}"
+    _debug "unpacked dir: ${unpack_dir}"
 
     # clear prior driver's info about source to insert into Source Image
     _rm_rf "${work_dir}/driver/${IMAGE_DIGEST/:/\/}"
@@ -729,7 +791,7 @@ main() {
     # iterate on the drivers
     #for driver in sourcedriver_rpm_fetch ; do
     for driver in ${drivers} ; do
-        info "calling $driver"
+        _info "calling $driver"
         mkdir -vp "${src_dir}/${IMAGE_DIGEST/:/\/}/${driver#sourcedriver_*}"
         mkdir -vp "${work_dir}/driver/${IMAGE_DIGEST/:/\/}/${driver#sourcedriver_*}"
         $driver \
@@ -737,6 +799,9 @@ main() {
             "${unpack_dir}/rootfs" \
             "${src_dir}/${IMAGE_DIGEST/:/\/}/${driver#sourcedriver_*}" \
             "${work_dir}/driver/${IMAGE_DIGEST/:/\/}/${driver#sourcedriver_*}"
+        if [ $? -ne 0 ] ; then
+            _error "$driver failed"
+        fi
 
         # TODO walk the driver output to determine layers to be added
         # find "${work_dir}/driver/${IMAGE_DIGEST/:/\/}/${driver#sourcedriver_*}" -type f -name '*.json'
