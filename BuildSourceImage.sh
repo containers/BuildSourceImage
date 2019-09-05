@@ -345,7 +345,7 @@ layout_new() {
   }
 }
     '
-    local config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ print $1 }' | tr -d '\n')
+    local config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
     echo "${config}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${config_sum}"
 
     local mnfst='
@@ -359,7 +359,7 @@ layout_new() {
   "layers": []
 }
     '
-    local mnfst_sum=$(echo "${mnfst}" | jq -c | tr -d '\n' | sha256sum | awk '{ print $1 }' | tr -d '\n')
+    local mnfst_sum=$(echo "${mnfst}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
     echo "${mnfst}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${mnfst_sum}"
 
     echo '
@@ -427,7 +427,7 @@ layout_insert() {
     _rm_rf "${tmpdir}"
 
     # checksum tar and move to blobs/sha256/$checksum
-    local tmptar_sum="$(sha256sum ${tmptar} | awk '{ print $1 }')"
+    local tmptar_sum="$(sha256sum ${tmptar} | awk '{ ORS=""; print $1 }')"
     local tmptar_size="$(_size ${tmptar})"
     mv "${tmptar}" "${out_dir}/blobs/sha256/${tmptar_sum}"
 
@@ -455,7 +455,7 @@ layout_insert() {
     _rm_rf "${out_dir}/blobs/${config_sum/:/\/}"
 
     # rename the config blob to its new checksum
-    local tmpconfig_sum="$(sha256sum ${tmpconfig} | awk '{ print $1 }')"
+    local tmpconfig_sum="$(sha256sum ${tmpconfig} | awk '{ ORS=""; print $1 }')"
     local tmpconfig_size="$(_size ${tmpconfig})"
     mv "${tmpconfig}" "${out_dir}/blobs/sha256/${tmpconfig_sum}"
 
@@ -487,7 +487,7 @@ layout_insert() {
     _rm_rf "${mnfst}"
 
     # rename the manifest blob to its new checksum
-    local tmpmnfst_sum="$(sha256sum ${tmpmnfst} | awk '{ print $1 }')"
+    local tmpmnfst_sum="$(sha256sum ${tmpmnfst} | awk '{ ORS=""; print $1 }')"
     local tmpmnfst_size="$(_size ${tmpmnfst})"
     mv "${tmpmnfst}" "${out_dir}/blobs/sha256/${tmpmnfst_sum}"
 
