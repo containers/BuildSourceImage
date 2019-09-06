@@ -1,13 +1,6 @@
 FROM fedora
 
-RUN dnf install -y skopeo golang jq git
-RUN dnf install -y make findutils
-ENV GOPATH=/usr/share/gocode
-ENV GOBIN=/usr/local/bin
-RUN git clone https://github.com/openSUSE/umoci $GOPATH/src/github.com/openSUSE/umoci
-RUN cd $GOPATH/src/github.com/openSUSE/umoci && \
-    make && \
-    mv umoci /usr/local/bin
+RUN dnf install -y jq skopeo findutils file
 
 COPY . /usr/local/bin/
 
@@ -18,4 +11,4 @@ VOLUME /output
 ENV SRC_DIR=/src
 VOLUME /src
 
-#ENTRYPOINT ["/usr/local/bin/BuildSourceImage.sh"]
+ENTRYPOINT ["/usr/local/bin/BuildSourceImage.sh"]
