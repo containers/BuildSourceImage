@@ -8,14 +8,14 @@ export source_image_suffix="-source"
 
 
 _usage() {
-    echo "Usage: $(basename $0) [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]"
+    echo "Usage: $(basename "$0") [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]"
     echo ""
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
     echo -e "       -r <path>\tdirectory of RPMS to add. Can be provided via RPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
-    echo -e "       -d <drivers>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
+    echo -e "       -d <drivers>\tenumerate specific source drivers to run"
     echo -e "       -l\t\tlist the source drivers available"
     echo -e "       -i <image>\timage reference to fetch and inspect its rootfs"
     echo -e "       -p <image>\tpush source image to reference after build"
@@ -75,47 +75,47 @@ _mktemp() {
 
 # local rm -rf
 _rm_rf() {
-    _debug "rm -rf $@"
-    rm -rf $@
+    _debug "rm -rf ${*}"
+    rm -rf "${@}"
 }
 
 # local mkdir -p
 _mkdir_p() {
     if [ -n "${DEBUG}" ] ; then
-        mkdir -vp $@
+        mkdir -vp "${@}"
     else
-        mkdir -p $@
+        mkdir -p "${@}"
     fi
 }
 
 # local tar
 _tar() {
     if [ -n "${DEBUG}" ] ; then
-        tar -v $@
+        tar -v "${@}"
     else
-        tar $@
+        tar "${@}"
     fi
 }
 
 # output things, only when $DEBUG is set
 _debug() {
     if [ -n "${DEBUG}" ] ; then
-        echo "[${ABV_NAME}][DEBUG] ${@}"
+        echo "[${ABV_NAME}][DEBUG] ${*}"
     fi
 }
 
 # general echo but with prefix
 _info() {
-    echo "[${ABV_NAME}][INFO] ${@}"
+    echo "[${ABV_NAME}][INFO] ${*}"
 }
 
 _warn() {
-    echo "[${ABV_NAME}][WARN] ${@}" >&2
+    echo "[${ABV_NAME}][WARN] ${*}" >&2
 }
 
 # general echo but with prefix
 _error() {
-    echo "[${ABV_NAME}][ERROR] ${@}" >&2
+    echo "[${ABV_NAME}][ERROR] ${*}" >&2
     exit 1
 }
 
@@ -133,7 +133,7 @@ _error() {
 parse_img_digest() {
     local ref="${1}"
     local digest=""
-    if [ "$(_count '@' ${ref})" -gt 0 ] ; then
+    if [ "$(_count '@' "${ref}")" -gt 0 ] ; then
         digest="${ref##*@}" # the digest after the "@"
     fi
     echo -n "${digest}"
@@ -144,11 +144,13 @@ parse_img_digest() {
 #
 parse_img_base() {
     local ref="${1%@*}" # just the portion before the digest "@"
-    local base="${ref}" default to the same
-    if [ "$(_count ':' $(echo ${ref} | tr '/' '\n' | tail -1 ))" -gt 0 ] ; then
+    local base="${ref}" # default base is their reference
+    local last_word="" # splitting up their reference to get the last word/chunk
+    last_word="$(echo "${ref}" | tr '/' '\n' | tail -1 )"
+    if [ "$(_count ':' "${last_word}")" -gt 0 ] ; then
         # which means everything before it is the base image name, **including
-        # transport (which could have a port delineation), and even a URI
-        base="$(echo ${ref} | rev | cut -d : -f 2 | rev )"
+        # transport (which could have a port delineation), and even a URI like network ports.
+        base="$(echo "${ref}" | rev | cut -d : -f 2 | rev )"
     fi
     echo -n "${base}"
 }
@@ -165,9 +167,11 @@ parse_img_tag() {
         return 0
     fi
 
-    if [ "$(_count ':' $(echo ${ref} | tr '/' '\n' | tail -1 ))" -gt 0 ] ; then
+    local last_word="" # splitting up their reference to get the last word/chunk
+    last_word="$(echo "${ref}" | tr '/' '\n' | tail -1 )"
+    if [ "$(_count ':' "${last_word}")" -gt 0 ] ; then
         # if there are colons in the last segment after '/', then get that tag name
-        tag="$(echo ${ref} | tr '/' '\n' | tail -1 | cut -d : -f 2 )"
+        tag="${last_word#*:}" # this parameter expansion removes the prefix pattern before the ':'
     fi
     echo -n "${tag}"
 }
@@ -177,16 +181,15 @@ parse_img_tag() {
 #
 ref_prefix() {
     local ref="${1}"
+    local pfxs
 
     # get the supported prefixes of the current version of skopeo
-    IFS=", "
-    local pfxs=( $(skopeo copy --help | grep -A1 "Supported transports:" | grep -v "Supported transports") )
-    unset IFS
+    mapfile -t pfxs < <(skopeo copy --help | grep -A1 "Supported transports:" | grep -v "Supported transports" | sed 's/, /\n/g')
 
-    for pfx in ${pfxs[@]} ; do
-        if echo ${ref} | grep -q "^${pfx}:" ; then
-            # break when we match
-            echo ${ref}
+    for pfx in "${pfxs[@]}" ; do
+        if echo "${ref}" | grep -q "^${pfx}:" ; then
+            # break if we match a known prefix
+            echo "${ref}"
             return 0
         fi
     done
@@ -201,7 +204,7 @@ ref_prefix() {
 #
 ref_src_img_tag() {
     local ref="${1}"
-    echo -n "$(parse_img_tag ${ref})${source_image_suffix}"
+    echo -n "$(parse_img_tag "${ref}")""${source_image_suffix}"
 }
 
 #
@@ -209,9 +212,12 @@ ref_src_img_tag() {
 #
 fetch_img_digest() {
     local ref="${1}"
+    local dgst
+    local ret
+
     ## TODO: check for authfile, creds, and whether it's an insecure registry
-    local dgst=$(skopeo inspect "$(ref_prefix ${ref})" | jq .Digest | tr -d \")
-    local ret=$?
+    dgst=$(skopeo inspect "$(ref_prefix "${ref}")" | jq .Digest | tr -d \")
+    ret=$?
     if [ $ret -ne 0 ] ; then
         echo "ERROR: check the image reference: ${ref}" >&2
         return $ret
@@ -231,18 +237,22 @@ fetch_img_digest() {
 fetch_img() {
     local ref="${1}"
     local dst="${2}"
+    local base
+    local tag
+    local dgst
+    local from
 
     _mkdir_p "${dst}"
 
-    local base="$(parse_img_base ${ref})"
-    local tag="$(parse_img_tag ${ref})"
-    local dgst="$(parse_img_digest ${ref})"
-    local from=""
+    base="$(parse_img_base "${ref}")"
+    tag="$(parse_img_tag "${ref}")"
+    dgst="$(parse_img_digest "${ref}")"
+    from=""
     # skopeo currently only support _either_ tag _or_ digest, so we'll be specific.
     if [ -n "${dgst}" ] ; then
-        from="$(ref_prefix ${base})@${dgst}"
+        from="$(ref_prefix "${base}")@${dgst}"
     else
-        from="$(ref_prefix ${base}):${tag}"
+        from="$(ref_prefix "${base}"):${tag}"
     fi
 
     ## TODO: check for authfile, creds, and whether it's an insecure registry
@@ -281,36 +291,37 @@ unpack_img() {
 unpack_img_bash() {
     local image_dir="${1}"
     local unpack_dir="${2}"
+    local mnfst_dgst
+    local layer_dgsts
 
     # for compat with umoci (which wants the image tag as well)
     if echo "${image_dir}" | grep -q ":" ; then
         image_dir="${image_dir%:*}"
     fi
 
-    local mnfst_dgst="$(cat "${image_dir}"/index.json | jq '.manifests[0].digest' | tr -d \" )"
+    mnfst_dgst="$(jq '.manifests[0].digest' "${image_dir}"/index.json | tr -d \")"
 
     # Since we're landing the reference as an OCI layout, this mediaType is fairly predictable
     # TODO don't always assume +gzip
-    layer_dgsts="$(cat ${image_dir}/blobs/${mnfst_dgst/:/\/} | \
-        jq '.layers[] | select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip") | .digest' | tr -d \")"
+    layer_dgsts="$(jq '.layers[] | select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip") | .digest' "${image_dir}"/blobs/"${mnfst_dgst/:/\/}" | tr -d \")"
 
     _mkdir_p "${unpack_dir}/rootfs"
     for dgst in ${layer_dgsts} ; do
         path="${image_dir}/blobs/${dgst/:/\/}"
         tmp_file=$(_mktemp)
-        zcat "${path}" | _tar -t > $tmp_file # TODO cleanup these files
+        zcat "${path}" | _tar -t > "$tmp_file" # TODO cleanup these files
 
         # look for '.wh.' entries. They must be removed from the rootfs
         # _before_ extracting the archive, then the .wh. entries themselves
         # need to not remain afterwards
-        grep '\.wh\.' "${tmp_file}" | while read line ; do
+        grep '\.wh\.' "${tmp_file}" | while read -r wh_path ; do
             # if `some/path/.wh.foo` then `rm -rf `${unpack_dir}/some/path/foo`
             # if `some/path/.wh..wh..opq` then `rm -rf `${unpack_dir}/some/path/*`
-            if [ "$(basename ${line})" == ".wh..wh..opq" ] ; then
-                _rm_rf "${unpack_dir}/rootfs/$(dirname ${line})/*"
-            elif basename "${line}" | grep -qe '^\.wh\.' ; then
-                name=$(basename "${line}" | sed -e 's/^\.wh\.//')
-                _rm_rf "${unpack_dir}/rootfs/$(dirname ${line})/${name}"
+            if [ "$(basename "${wh_path}")" == ".wh..wh..opq" ] ; then
+                _rm_rf "${unpack_dir}/rootfs/$(dirname "${wh_path}")/*"
+            elif basename "${wh_path}" | grep -qe '^\.wh\.' ; then
+                name=$(basename "${wh_path}" | sed -e 's/^\.wh\.//')
+                _rm_rf "${unpack_dir}/rootfs/$(dirname "${wh_path}")/${name}"
             fi
         done
 
@@ -345,8 +356,8 @@ push_img() {
     local dst="${2}"
 
     ## TODO: check for authfile, creds, and whether it's an insecure registry
-    skopeo copy --dest-tls-verify=false "$(ref_prefix ${src})" "$(ref_prefix ${dst})" # XXX for demo only
-    #skopeo copy "$(ref_prefix ${src})" "$(ref_prefix ${dst})"
+    skopeo copy --dest-tls-verify=false "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")" # XXX for demo only
+    #skopeo copy "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")"
     ret=$?
     return $ret
 }
@@ -357,10 +368,14 @@ push_img() {
 layout_new() {
     local out_dir="${1}"
     local image_tag="${2:-latest}"
+    local config
+    local mnfst
+    local config_sum
+    local mnfst_sum
 
     _mkdir_p "${out_dir}/blobs/sha256"
     echo '{"imageLayoutVersion":"1.0.0"}' > "${out_dir}/oci-layout"
-    local config='
+    config='
 {
   "created": "'$(_date_ns)'",
   "architecture": "amd64",
@@ -372,21 +387,21 @@ layout_new() {
   }
 }
     '
-    local config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
+    config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
     echo "${config}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${config_sum}"
 
-    local mnfst='
+    mnfst='
 {
   "schemaVersion": 2,
   "config": {
     "mediaType": "application/vnd.oci.image.config.v1+json",
     "digest": "sha256:'"${config_sum}"'",
-    "size": '"$(_size ${out_dir}/blobs/sha256/${config_sum})"'
+    "size": '"$(_size "${out_dir}"/blobs/sha256/"${config_sum}")"'
   },
   "layers": []
 }
     '
-    local mnfst_sum=$(echo "${mnfst}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
+    mnfst_sum=$(echo "${mnfst}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
     echo "${mnfst}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${mnfst_sum}"
 
     echo '
@@ -396,7 +411,7 @@ layout_new() {
     {
       "mediaType": "application/vnd.oci.image.manifest.v1+json",
       "digest": "sha256:'"${mnfst_sum}"'",
-      "size": '"$(_size ${out_dir}/blobs/sha256/${mnfst_sum})"',
+      "size": '"$(_size "${out_dir}"/blobs/sha256/"${mnfst_sum}")"',
       "annotations": {
         "org.opencontainers.image.ref.name": "'"${image_tag}"'"
       }
@@ -420,51 +435,67 @@ layout_insert() {
     local tar_path="${3}"
     local annotations_file="${4}"
     local image_tag="${5:-latest}"
+    local mnfst_list
+    local mnfst_dgst
+    local mnfst
+    local tmpdir
+    local sum
+    local tmptar
+    local tmptar_sum
+    local tmptar_size
+    local config_sum
+    local tmpconfig
+    local tmpconfig_sum
+    local tmpconfig_size
+    local tmpmnfst
+    local tmpmnfst_sum
+    local tmpmnfst_size
+    local tmpmnfst_list
 
-    local mnfst_list="${out_dir}/index.json"
+    mnfst_list="${out_dir}/index.json"
     # get the digest to the manifest
     test -f "${mnfst_list}" || return 1
-    local mnfst_dgst="$(cat ${mnfst_list} | jq --arg tag "${image_tag}" '
+    mnfst_dgst="$(jq --arg tag "${image_tag}" '
         .manifests[]
         |  select(.annotations."org.opencontainers.image.ref.name" == $tag )
         | .digest
-    ' | tr -d \" | tr -d '\n' )"
-    local mnfst="${out_dir}/blobs/${mnfst_dgst/:/\/}"
+    ' "${mnfst_list}" | tr -d \" | tr -d '\n' )"
+    mnfst="${out_dir}/blobs/${mnfst_dgst/:/\/}"
     test -f "${mnfst}" || return 1
 
     # make tar of new object
-    local tmpdir="$(_mktemp_d)"
+    tmpdir="$(_mktemp_d)"
     # TODO account for "artifact_path" being a directory?
-    local sum="$(sha256sum ${artifact_path} | awk '{ print $1 }')"
+    sum="$(sha256sum "${artifact_path}" | awk '{ print $1 }')"
     # making a blob store in the layer
     _mkdir_p "${tmpdir}/blobs/sha256"
     cp "${artifact_path}" "${tmpdir}/blobs/sha256/${sum}"
-    if [ "$(basename ${tar_path})" == "$(basename ${artifact_path})" ] ; then
-        _mkdir_p "${tmpdir}/$(dirname ${tar_path})"
+    if [ "$(basename "${tar_path}")" == "$(basename "${artifact_path}")" ] ; then
+        _mkdir_p "${tmpdir}/$(dirname "${tar_path}")"
         # TODO this symlink need to be relative path, not to `/blobs/...`
         ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}"
     else
         _mkdir_p "${tmpdir}/${tar_path}"
         # TODO this symlink need to be relative path, not to `/blobs/...`
-        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename ${artifact_path})"
+        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename "${artifact_path}")"
     fi
-    local tmptar="$(_mktemp)"
+    tmptar="$(_mktemp)"
 
     # zero all the things for as consistent blobs as possible
     _tar -C "${tmpdir}" --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls -cf "${tmptar}" .
     _rm_rf "${tmpdir}"
 
     # checksum tar and move to blobs/sha256/$checksum
-    local tmptar_sum="$(sha256sum ${tmptar} | awk '{ ORS=""; print $1 }')"
-    local tmptar_size="$(_size ${tmptar})"
+    tmptar_sum="$(sha256sum "${tmptar}" | awk '{ ORS=""; print $1 }')"
+    tmptar_size="$(_size "${tmptar}")"
     mv "${tmptar}" "${out_dir}/blobs/sha256/${tmptar_sum}"
 
     # find and read the prior config, mapped from the manifest
-    local config_sum="$(jq '.config.digest' "${mnfst}" | tr -d \")"
+    config_sum="$(jq '.config.digest' "${mnfst}" | tr -d \")"
 
     # use `jq` to append to prior config
-    local tmpconfig="$(_mktemp)"
-    cat "${out_dir}/blobs/${config_sum/:/\/}" | jq -c \
+    tmpconfig="$(_mktemp)"
+    jq -c \
         --arg date "$(_date_ns)" \
         --arg tmptar_sum "sha256:${tmptar_sum}" \
         --arg comment "#(nop) BuildSourceImage adding artifact: ${sum}" \
@@ -477,22 +508,22 @@ layout_insert() {
                 "created_by": $comment
             }
         ]
-        ' > "${tmpconfig}"
+        ' "${out_dir}/blobs/${config_sum/:/\/}" > "${tmpconfig}"
     _rm_rf "${out_dir}/blobs/${config_sum/:/\/}"
 
     # rename the config blob to its new checksum
-    local tmpconfig_sum="$(sha256sum ${tmpconfig} | awk '{ ORS=""; print $1 }')"
-    local tmpconfig_size="$(_size ${tmpconfig})"
+    tmpconfig_sum="$(sha256sum "${tmpconfig}" | awk '{ ORS=""; print $1 }')"
+    tmpconfig_size="$(_size "${tmpconfig}")"
     mv "${tmpconfig}" "${out_dir}/blobs/sha256/${tmpconfig_sum}"
 
     # append layers list in the manifest, and its new config mapping
-    local tmpmnfst="$(_mktemp)"
-    cat "${mnfst}" | jq -c \
+    tmpmnfst="$(_mktemp)"
+    jq -c \
         --arg tmpconfig_sum "sha256:${tmpconfig_sum}" \
         --arg tmpconfig_size "${tmpconfig_size}" \
         --arg tmptar_sum "sha256:${tmptar_sum}" \
         --arg tmptar_size "${tmptar_size}" \
-        --arg artifact "$(basename ${artifact_path})" \
+        --arg artifact "$(basename "${artifact_path}")" \
         --arg sum "sha256:${sum}" \
         --slurpfile annotations_slup "${annotations_file}" \
         '
@@ -511,7 +542,7 @@ layout_insert() {
                 "annotations": $annotations_merge
             }
         ]
-        ' > "${tmpmnfst}"
+        ' "${mnfst}" > "${tmpmnfst}"
     ret=$?
     if [ $ret -ne 0 ] ; then
         return 1
@@ -519,13 +550,13 @@ layout_insert() {
     _rm_rf "${mnfst}"
 
     # rename the manifest blob to its new checksum
-    local tmpmnfst_sum="$(sha256sum ${tmpmnfst} | awk '{ ORS=""; print $1 }')"
-    local tmpmnfst_size="$(_size ${tmpmnfst})"
+    tmpmnfst_sum="$(sha256sum "${tmpmnfst}" | awk '{ ORS=""; print $1 }')"
+    tmpmnfst_size="$(_size "${tmpmnfst}")"
     mv "${tmpmnfst}" "${out_dir}/blobs/sha256/${tmpmnfst_sum}"
 
     # map the mnfst_list to the new mnfst checksum
-    local tmpmnfst_list="$(_mktemp)"
-    cat "${mnfst_list}" | jq -c \
+    tmpmnfst_list="$(_mktemp)"
+    jq -c \
         --arg tag "${image_tag}" \
         --arg tmpmnfst_sum "sha256:${tmpmnfst_sum}" \
         --arg tmpmnfst_size "${tmpmnfst_size}" \
@@ -543,7 +574,7 @@ layout_insert() {
                 }
               ] as $manifests_new
             | .manifests = $manifests_reduced + $manifests_new
-        ' > "${tmpmnfst_list}"
+        ' "${mnfst_list}" > "${tmpmnfst_list}"
     ret=$?
     if [ $ret -ne 0 ] ; then
         return 1
@@ -584,17 +615,26 @@ sourcedriver_rpm_fetch() {
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
+    local release
+    local rpm
+    local srcrpm_buildtime
+    local srcrpm_pkgid
+    local srcrpm_name
+    local srcrpm_version
+    local srcrpm_epoch
+    local srcrpm_release
+    local mimetype
 
     # Get the RELEASEVER from the image
-    local release=$(rpm -q --queryformat "%{VERSION}\n" --root ${rootfs} -f /etc/os-release)
+    release=$(rpm -q --queryformat "%{VERSION}\n" --root "${rootfs}" -f /etc/os-release)
 
     # From the rootfs of the works image, build out the src rpms to operate over
-    for srcrpm in $(rpm -qa --root ${rootfs} --queryformat '%{SOURCERPM}\n' | grep -v '^gpg-pubkey' | sort -u) ; do
+    for srcrpm in $(rpm -qa --root "${rootfs}" --queryformat '%{SOURCERPM}\n' | grep -v '^gpg-pubkey' | sort -u) ; do
         if [ "${srcrpm}" == "(none)" ] ; then
             continue
         fi
 
-        local rpm=${srcrpm%*.src.rpm}
+        rpm=${srcrpm%*.src.rpm}
         if [ ! -f "${out_dir}/${srcrpm}" ] ; then
             _debug "--> fetching ${srcrpm}"
             dnf download \
@@ -613,16 +653,16 @@ sourcedriver_rpm_fetch() {
             _debug "--> using cached ${srcrpm}"
         fi
 
-        # XXX one day, check and confirm with %{sourcepkgid}
+        # TODO one day, check and confirm with %{sourcepkgid}
         # https://bugzilla.redhat.com/show_bug.cgi?id=1741715
-        #local rpm_sourcepkgid=$(rpm -q --root ${rootfs} --queryformat '%{sourcepkgid}' "${rpm}")
-        local srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' ${out_dir}/${srcrpm} )
-        local srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' ${out_dir}/${srcrpm} )
-        local srcrpm_name=$(rpm -qp --qf '%{name}' ${out_dir}/${srcrpm} )
-        local srcrpm_version=$(rpm -qp --qf '%{version}' ${out_dir}/${srcrpm} )
-        local srcrpm_epoch=$(rpm -qp --qf '%{epoch}' ${out_dir}/${srcrpm} )
-        local srcrpm_release=$(rpm -qp --qf '%{release}' ${out_dir}/${srcrpm} )
-        local mimetype="$(file --brief --mime-type ${out_dir}/${srcrpm})"
+        #rpm_sourcepkgid=$(rpm -q --root ${rootfs} --queryformat '%{sourcepkgid}' "${rpm}")
+        srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_name=$(rpm -qp --qf '%{name}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_version=$(rpm -qp --qf '%{version}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_epoch=$(rpm -qp --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_release=$(rpm -qp --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+        mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
         jq \
             -n \
             --arg filename "${srcrpm}" \
@@ -661,20 +701,27 @@ sourcedriver_rpm_dir() {
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
+    local srcrpm_buildtime
+    local srcrpm_pkgid
+    local srcrpm_name
+    local srcrpm_version
+    local srcrpm_epoch
+    local srcrpm_release
+    local mimetype
 
     if [ -n "${RPM_DIR}" ]; then
         _debug "[$self] writing to $out_dir and $manifest_dir"
-        find "${RPM_DIR}" -type f -name '*src.rpm' | while read srcrpm ; do
+        find "${RPM_DIR}" -type f -name '*src.rpm' | while read -r srcrpm ; do
             cp "${srcrpm}" "${out_dir}"
-            srcrpm="$(basename ${srcrpm})"
+            srcrpm="$(basename "${srcrpm}")"
             _debug "[$self] --> ${srcrpm}"
-            local srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' ${out_dir}/${srcrpm} )
-            local srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' ${out_dir}/${srcrpm} )
-            local srcrpm_name=$(rpm -qp --qf '%{name}' ${out_dir}/${srcrpm} )
-            local srcrpm_version=$(rpm -qp --qf '%{version}' ${out_dir}/${srcrpm} )
-            local srcrpm_epoch=$(rpm -qp --qf '%{epoch}' ${out_dir}/${srcrpm} )
-            local srcrpm_release=$(rpm -qp --qf '%{release}' ${out_dir}/${srcrpm} )
-            local mimetype="$(file --brief --mime-type ${out_dir}/${srcrpm})"
+            srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_name=$(rpm -qp --qf '%{name}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_version=$(rpm -qp --qf '%{version}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_epoch=$(rpm -qp --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_release=$(rpm -qp --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+            mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
             jq \
                 -n \
                 --arg filename "${srcrpm}" \
@@ -684,6 +731,7 @@ sourcedriver_rpm_dir() {
                 --arg release "${srcrpm_release}" \
                 --arg buildtime "${srcrpm_buildtime}" \
                 --arg mimetype "${mimetype}" \
+                --arg pkgid "${srcrpm_pkgid}" \
                 '
                     {
                         "source.artifact.filename": $filename,
@@ -692,6 +740,7 @@ sourcedriver_rpm_dir() {
                         "source.artifact.epoch": $version,
                         "source.artifact.release": $release,
                         "source.artifact.mimetype": $mimetype,
+                        "source.artifact.pkgid": $pkgid,
                         "source.artifact.buildtime": $buildtime
                     }
                 ' \
@@ -715,15 +764,18 @@ sourcedriver_context_dir() {
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
+    local tarname
+    local mimetype
+    local source_info
 
     if [ -n "${CONTEXT_DIR}" ]; then
         _debug "$self: writing to $out_dir and $manifest_dir"
-        local tarname="context.tar"
+        tarname="context.tar"
         _tar -C "${CONTEXT_DIR}" \
             --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
-        local mimetype="$(file --brief --mime-type ${out_dir}/${tarname})"
-        local source_info="${manifest_dir}/${tarname}.json"
+        mimetype="$(file --brief --mime-type "${out_dir}"/"${tarname}")"
+        source_info="${manifest_dir}/${tarname}.json"
         jq \
             -n \
             --arg name "${tarname}" \
@@ -753,15 +805,18 @@ sourcedriver_extra_src_dir() {
     local rootfs="${2}"
     local out_dir="${3}"
     local manifest_dir="${4}"
+    local tarname
+    local mimetype
+    local source_info
 
     if [ -n "${EXTRA_SRC_DIR}" ]; then
         _debug "$self: writing to $out_dir and $manifest_dir"
-        local tarname="extra-src.tar"
+        tarname="extra-src.tar"
         _tar -C "${EXTRA_SRC_DIR}" \
             --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
-        local mimetype="$(file --brief --mime-type ${out_dir}/${tarname})"
-        local source_info="${manifest_dir}/${tarname}.json"
+        mimetype="$(file --brief --mime-type "${out_dir}"/"${tarname}")"
+        source_info="${manifest_dir}/${tarname}.json"
         jq \
             -n \
             --arg name "${tarname}" \
@@ -782,9 +837,29 @@ sourcedriver_extra_src_dir() {
 
 
 main() {
-    _init ${@}
+    local base_dir
+    local context_dir
+    local drivers
+    local extra_src_dir
+    local image_ref
+    local img_layout
+    local inspect_image_ref
+    local list_drivers
+    local output_dir
+    local push_image_ref
+    local ret
+    local rootfs
+    local rpm_dir
+    local src_dir
+    local src_img_dir
+    local src_img_tag
+    local src_name
+    local unpack_dir
+    local work_dir
 
-    local base_dir="$(pwd)/${ABV_NAME}"
+    _init "${@}"
+
+    base_dir="$(pwd)/${ABV_NAME}"
     # using the bash builtin to parse
     while getopts ":hlDi:c:r:e:o:b:d:p:" opts; do
         case "${opts}" in
@@ -792,31 +867,31 @@ main() {
                 base_dir="${OPTARG}"
                 ;;
             c)
-                local context_dir=${OPTARG}
+                context_dir=${OPTARG}
                 ;;
             e)
-                local extra_src_dir=${OPTARG}
+                extra_src_dir=${OPTARG}
                 ;;
             d)
-                local drivers=${OPTARG}
+                drivers=${OPTARG}
                 ;;
             h)
                 _usage
                 ;;
             i)
-                local inspect_image_ref=${OPTARG}
+                inspect_image_ref=${OPTARG}
                 ;;
             l)
-                local list_drivers=1
+                list_drivers=1
                 ;;
             o)
-                local output_dir=${OPTARG}
+                output_dir=${OPTARG}
                 ;;
             p)
-                local push_image_ref=${OPTARG}
+                push_image_ref=${OPTARG}
                 ;;
             r)
-                local rpm_dir=${OPTARG}
+                rpm_dir=${OPTARG}
                 ;;
             D)
                 export DEBUG=1
@@ -839,7 +914,7 @@ main() {
     export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$extra_src_dir}"
     export RPM_DIR="${RPM_DIR:-$rpm_dir}"
 
-    local output_dir="${OUTPUT_DIR:-$output_dir}"
+    output_dir="${OUTPUT_DIR:-$output_dir}"
 
     export TMPDIR="${base_dir}/tmp"
     if [ -d "${TMPDIR}" ] ; then
@@ -848,42 +923,42 @@ main() {
     _mkdir_p "${TMPDIR}"
 
     # setup rootfs to be inspected (if any)
-    local rootfs=""
-    local image_ref=""
-    local src_dir=""
-    local work_dir="${base_dir}/work"
+    rootfs=""
+    image_ref=""
+    src_dir=""
+    work_dir="${base_dir}/work"
     if [ -n "${inspect_image_ref}" ] ; then
         _debug "Image Reference provided: ${inspect_image_ref}"
-        _debug "Image Reference base: $(parse_img_base ${inspect_image_ref})"
-        _debug "Image Reference tag: $(parse_img_tag ${inspect_image_ref})"
+        _debug "Image Reference base: $(parse_img_base "${inspect_image_ref}")"
+        _debug "Image Reference tag: $(parse_img_tag "${inspect_image_ref}")"
 
-        inspect_image_digest="$(parse_img_digest ${inspect_image_ref})"
+        inspect_image_digest="$(parse_img_digest "${inspect_image_ref}")"
         # determine missing digest before fetch, so that we fetch the precise image
         # including its digest.
         if [ -z "${inspect_image_digest}" ] ; then
-            inspect_image_digest="$(fetch_img_digest $(parse_img_base ${inspect_image_ref}):$(parse_img_tag ${inspect_image_ref}))"
+            inspect_image_digest="$(fetch_img_digest "$(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")")"
         fi
         _debug "inspect_image_digest: ${inspect_image_digest}"
 
-        local img_layout=""
+        img_layout=""
         # if inspect and fetch image, then to an OCI layout dir
         if [ ! -d "${work_dir}/layouts/${inspect_image_digest/:/\/}" ] ; then
             # we'll store the image to a path based on its digest, that it can be reused
-            img_layout="$(fetch_img $(parse_img_base ${inspect_image_ref}):$(parse_img_tag ${inspect_image_ref})@${inspect_image_digest} ${work_dir}/layouts/${inspect_image_digest/:/\/} )"
+            img_layout="$(fetch_img "$(parse_img_base "${inspect_image_ref}")":"$(parse_img_tag "${inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/:/\/}" )"
         else
-            img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag ${inspect_image_ref})"
+            img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag "${inspect_image_ref}")"
         fi
         _debug "image layout: ${img_layout}"
 
         # unpack or reuse fetched image
-        local unpack_dir="${work_dir}/unpacked/${inspect_image_digest/:/\/}"
+        unpack_dir="${work_dir}/unpacked/${inspect_image_digest/:/\/}"
         if [ -d "${unpack_dir}" ] ; then
             _rm_rf "${unpack_dir}"
         fi
-        unpack_img ${img_layout} ${unpack_dir}
+        unpack_img "${img_layout}" "${unpack_dir}"
 
         rootfs="${unpack_dir}/rootfs"
-        image_ref="$(parse_img_base ${inspect_image_ref}):$(parse_img_tag ${inspect_image_ref})@${inspect_image_digest}"
+        image_ref="$(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")@${inspect_image_digest}"
         src_dir="${base_dir}/src/${inspect_image_digest/:/\/}"
         work_dir="${base_dir}/work/${inspect_image_digest/:/\/}"
         _info "inspecting image reference ${image_ref}"
@@ -909,14 +984,14 @@ main() {
 
     if [ -n "${drivers}" ] ; then
         # clean up the args passed by the caller ...
-        drivers="$(echo ${drivers} | tr ',' ' '| tr '\n' ' ')"
+        drivers="$(echo "${drivers}" | tr ',' ' '| tr '\n' ' ')"
     else
         drivers="$(set | grep '^sourcedriver_.* () ' | tr -d ' ()' | tr '\n' ' ')"
     fi
 
     # Prep the OCI layout for the source image
-    local src_img_dir="$(_mktemp_d)"
-    local src_img_tag="latest-source" #XXX this tag needs to be a reference to the image built from
+    src_img_dir="$(_mktemp_d)"
+    src_img_tag="latest-source" # XXX this tag needs to be a reference to the image built from
     layout_new "${src_img_dir}" "${src_img_tag}"
 
     # iterate on the drivers
@@ -930,14 +1005,14 @@ main() {
             "${rootfs}" \
             "${src_dir}/${driver#sourcedriver_*}" \
             "${work_dir}/driver/${driver#sourcedriver_*}"
-        local ret=$?
+        ret=$?
         if [ $ret -ne 0 ] ; then
             _error "$driver failed"
         fi
 
         # walk the driver output to determine layers to be added
-        find "${work_dir}/driver/${driver#sourcedriver_*}" -type f -name '*.json' | while read src_json ; do
-            local src_name=$(basename "${src_json}" .json)
+        find "${work_dir}/driver/${driver#sourcedriver_*}" -type f -name '*.json' | while read -r src_json ; do
+            src_name=$(basename "${src_json}" .json)
             layout_insert \
                 "${src_img_dir}" \
                 "${src_dir}/${driver#sourcedriver_*}/${src_name}" \
@@ -956,14 +1031,14 @@ main() {
 
     # TODO maybe look to a directory like /usr/libexec/BuildSourceImage/drivers/ for drop-ins to run
 
-    _info "succesfully packed 'oci:$src_img_dir:${src_img_tag}'"
-    _debug "$(skopeo inspect oci:$src_img_dir:${src_img_tag})"
+    _info "succesfully packed 'oci:${src_img_dir}:${src_img_tag}'"
+    _debug "$(skopeo inspect oci:"${src_img_dir}":"${src_img_tag}")"
 
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
         _mkdir_p "${output_dir}"
         # XXX this $inspect_image_ref currently relies on the user passing in the `-i` flag
-        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag $(parse_img_tag ${inspect_image_ref}))"
+        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${inspect_image_ref}")")"
     fi
 
     if [ -n "${push_image_ref}" ] ; then
@@ -974,6 +1049,6 @@ main() {
 }
 
 # only exec main if this is being called (this way we can source and test the functions)
-_is_sourced || main ${@}
+_is_sourced || main "${@}"
 
 # vim:set shiftwidth=4 softtabstop=4 expandtab:
