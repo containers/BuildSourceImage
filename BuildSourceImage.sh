@@ -656,9 +656,11 @@ sourcedriver_rpm_dir() {
     local manifest_dir="${4}"
 
     if [ -n "${RPM_DIR}" ]; then
-        _debug "$self: writing to $out_dir and $manifest_dir"
+        _debug "[$self] writing to $out_dir and $manifest_dir"
         find "${RPM_DIR}" -type f -name '*src.rpm' | while read srcrpm ; do
             cp "${srcrpm}" "${out_dir}"
+            srcrpm="$(basename ${srcrpm})"
+            _debug "[$self] --> ${srcrpm}"
             local srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' ${out_dir}/${srcrpm} )
             local srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' ${out_dir}/${srcrpm} )
             local srcrpm_name=$(rpm -qp --qf '%{name}' ${out_dir}/${srcrpm} )
