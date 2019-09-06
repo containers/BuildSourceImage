@@ -333,15 +333,22 @@ unpack_img_umoci() {
     _debug "unpackging with umoci"
     # always assume we're not root I reckon
     umoci unpack --rootless --image "${image_dir}" "${unpack_dir}" >&2
+    ret=$?
+    return $ret
 }
 
-# TODO this is not worked out yet
+#
+# copy an image from one location to another
+#
 push_img() {
-    local ref="${1}"
-    local path="${2}"
+    local src="${1}"
+    local dst="${2}"
 
     ## TODO: check for authfile, creds, and whether it's an insecure registry
-    skopeo copy "oci:${path}:$(ref_src_img_tag ${ref})" "$(ref_prefix ${ref})"
+    skopeo copy --dest-tls-verify=false "$(ref_prefix ${src})" "$(ref_prefix ${dst})" # XXX for demo only
+    #skopeo copy "$(ref_prefix ${src})" "$(ref_prefix ${dst})"
+    ret=$?
+    return $ret
 }
 
 #
@@ -589,7 +596,7 @@ sourcedriver_rpm_fetch() {
 
         local rpm=${srcrpm%*.src.rpm}
         if [ ! -f "${out_dir}/${srcrpm}" ] ; then
-            _info "--> fetching ${srcrpm}"
+            _debug "--> fetching ${srcrpm}"
             dnf download \
                 --quiet \
                 --installroot "${rootfs}" \
@@ -603,7 +610,7 @@ sourcedriver_rpm_fetch() {
                 continue
             fi
         else
-            _info "--> using cached ${srcrpm}"
+            _debug "--> using cached ${srcrpm}"
         fi
 
         # XXX one day, check and confirm with %{sourcepkgid}
@@ -806,7 +813,7 @@ main() {
                 local output_dir=${OPTARG}
                 ;;
             p)
-                local push_image_ref${OPTARG}
+                local push_image_ref=${OPTARG}
                 ;;
             r)
                 local rpm_dir=${OPTARG}
@@ -955,6 +962,7 @@ main() {
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
         _mkdir_p "${output_dir}"
+        # XXX this $inspect_image_ref currently relies on the user passing in the `-i` flag
         push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag $(parse_img_tag ${inspect_image_ref}))"
     fi
 
