@@ -277,7 +277,7 @@ unpack_img() {
     fi
 
     # TODO perhaps if uid == 0 and podman is present then we can try it?
-    if [ -z "$(command -v umoci)" ] ; then
+    if [ -n "$(command -v umoci)" ] ; then
         # can be done as non-root (even in a non-root container)
         unpack_img_umoci "${image_dir}" "${unpack_dir}"
         ret=$?
