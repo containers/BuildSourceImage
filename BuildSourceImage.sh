@@ -13,12 +13,12 @@ _usage() {
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
-    echo -e "       -r <path>\tdirectory of RPMS to add. Can be provided via RPM_DIR env variable"
+    echo -e "       -r <path>\tdirectory of SRPMS to add. Can be provided via RPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\tenumerate specific source drivers to run"
     echo -e "       -l\t\tlist the source drivers available"
-    echo -e "       -i <image>\timage reference to fetch and inspect its rootfs"
-    echo -e "       -p <image>\tpush source image to reference after build"
+    echo -e "       -i <image>\timage reference to fetch and inspect its rootfs to derive sources"
+    echo -e "       -p <image>\tpush source image to specified reference after build"
     echo -e "       -D\t\tdebuging output. Can be set via DEBUG env variable"
     exit 1
 }
@@ -270,6 +270,7 @@ fetch_img() {
 unpack_img() {
     local image_dir="${1}"
     local unpack_dir="${2}"
+    local ret
 
     if [ -d "${unpack_dir}" ] ; then
         _rm_rf "${unpack_dir}"
@@ -279,9 +280,17 @@ unpack_img() {
     if [ -z "$(command -v umoci)" ] ; then
         # can be done as non-root (even in a non-root container)
         unpack_img_umoci "${image_dir}" "${unpack_dir}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
     else
         # can be done as non-root (even in a non-root container)
         unpack_img_bash "${image_dir}" "${unpack_dir}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
     fi
 }
 
@@ -293,6 +302,9 @@ unpack_img_bash() {
     local unpack_dir="${2}"
     local mnfst_dgst
     local layer_dgsts
+    local ret
+
+    _debug "unpacking with bash+jq"
 
     # for compat with umoci (which wants the image tag as well)
     if echo "${image_dir}" | grep -q ":" ; then
@@ -300,16 +312,24 @@ unpack_img_bash() {
     fi
 
     mnfst_dgst="$(jq '.manifests[0].digest' "${image_dir}"/index.json | tr -d \")"
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
 
     # Since we're landing the reference as an OCI layout, this mediaType is fairly predictable
     # TODO don't always assume +gzip
     layer_dgsts="$(jq '.layers[] | select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip") | .digest' "${image_dir}"/blobs/"${mnfst_dgst/:/\/}" | tr -d \")"
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
 
     _mkdir_p "${unpack_dir}/rootfs"
     for dgst in ${layer_dgsts} ; do
         path="${image_dir}/blobs/${dgst/:/\/}"
         tmp_file=$(_mktemp)
-        zcat "${path}" | _tar -t > "$tmp_file" # TODO cleanup these files
+        zcat "${path}" | _tar -t > "$tmp_file"
 
         # look for '.wh.' entries. They must be removed from the rootfs
         # _before_ extracting the archive, then the .wh. entries themselves
@@ -328,6 +348,10 @@ unpack_img_bash() {
         _info "[unpacking] layer ${dgst}"
         # unpack layer to rootfs (without whiteouts)
         zcat "${path}" | _tar --restrict --no-xattr --no-acls --no-selinux --exclude='*.wh.*' -x -C "${unpack_dir}/rootfs"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
 
         # some of the directories get unpacked as 0555, so removing them gives an EPERM
         find "${unpack_dir}" -type d -exec chmod 0755 "{}" \;
@@ -341,7 +365,7 @@ unpack_img_umoci() {
     local image_dir="${1}"
     local unpack_dir="${2}"
 
-    _debug "unpackging with umoci"
+    _debug "unpacking with umoci"
     # always assume we're not root I reckon
     umoci unpack --rootless --image "${image_dir}" "${unpack_dir}" >&2
     ret=$?
@@ -355,6 +379,7 @@ push_img() {
     local src="${1}"
     local dst="${2}"
 
+    _debug "pushing image ${src} to ${dst}"
     ## TODO: check for authfile, creds, and whether it's an insecure registry
     skopeo copy --dest-tls-verify=false "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")" # XXX for demo only
     #skopeo copy "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")"
@@ -956,6 +981,10 @@ main() {
             _rm_rf "${unpack_dir}"
         fi
         unpack_img "${img_layout}" "${unpack_dir}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
 
         rootfs="${unpack_dir}/rootfs"
         image_ref="$(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")@${inspect_image_digest}"
