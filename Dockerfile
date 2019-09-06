@@ -1,6 +1,6 @@
 FROM fedora
 
-RUN dnf install -y jq skopeo findutils file
+RUN dnf install -y jq skopeo findutils file 'dnf-command(download)'
 
 COPY . /usr/local/bin/
 
