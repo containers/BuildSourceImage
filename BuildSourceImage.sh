@@ -58,9 +58,9 @@ _size() {
     stat -c "%s" "${file}" | tr -d '\n'
 }
 
-# date timestamp in RFC 3339, to the nanosecond
+# date timestamp in RFC 3339, to the nanosecond, but slightly golang style ...
 _date_ns() {
-    date --rfc-3339=ns | tr -d '\n'
+    date --rfc-3339=ns | tr ' ' 'T' | tr -d '\n'
 }
 
 # local `mktemp -d`
@@ -946,6 +946,9 @@ main() {
     _info "packed 'oci:$src_img_dir:${src_img_tag}'"
 
     # TODO maybe look to a directory like /usr/libexec/BuildSourceImage/drivers/ for drop-ins to run
+
+    _info "succesfully packed 'oci:$src_img_dir:${src_img_tag}'"
+    _debug "$(skopeo inspect oci:$src_img_dir:${src_img_tag})"
 
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
