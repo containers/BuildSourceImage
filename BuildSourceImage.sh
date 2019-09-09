@@ -13,7 +13,7 @@ _usage() {
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
-    echo -e "       -r <path>\tdirectory of SRPMS to add. Can be provided via RPM_DIR env variable"
+    echo -e "       -r <path>\tdirectory of SRPMS to add. Can be provided via SRPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\tenumerate specific source drivers to run"
     echo -e "       -l\t\tlist the source drivers available"
@@ -23,9 +23,7 @@ _usage() {
     exit 1
 }
 
-#
 # sanity checks on startup
-#
 _init() {
     set -o pipefail
 
@@ -34,11 +32,12 @@ _init() {
         if [ -z "$(command -v ${cmd})" ] ; then
             # TODO: maybe this could be individual checks so it can report
             # where to find the tools
-            echo "ERROR: please install package to provide '${cmd}'"
+            _error "please install package to provide '${cmd}'"
         fi
     done
 }
 
+# _is_sourced tests whether this script is being source, or executed directly
 _is_sourced() {
     # https://unix.stackexchange.com/a/215279
     # thanks @tianon
@@ -46,16 +45,14 @@ _is_sourced() {
 }
 
 # count $character $string
-_count() {
-    #expr $(echo "${2}" | tr "${1}" '\n' | wc -l) - 1
+_count_char_in_string() {
     c="${2//[^${1}]}"
     echo -n ${#c}
 }
 
-# size of file in bytes
+# size of file/directory in bytes
 _size() {
-    local file="${1}"
-    stat -c "%s" "${file}" | tr -d '\n'
+    du -b "${1}" | awk '{ ORS=""; print $1 }' 
 }
 
 # date timestamp in RFC 3339, to the nanosecond, but slightly golang style ...
@@ -65,12 +62,18 @@ _date_ns() {
 
 # local `mktemp -d`
 _mktemp_d() {
-    mktemp -d "${TMPDIR:-/tmp}/${ABV_NAME}.XXXXXX"
+    local v
+    v=$(mktemp -d "${TMPDIR:-/tmp}/${ABV_NAME}.XXXXXX")
+    _debug "mktemp -d --> ${v}"
+    echo "${v}"
 }
 
 # local `mktemp`
 _mktemp() {
-    mktemp "${TMPDIR:-/tmp}/${ABV_NAME}.XXXXXX"
+    local v
+    v=$(mktemp "${TMPDIR:-/tmp}/${ABV_NAME}.XXXXXX")
+    _debug "mktemp --> ${v}"
+    echo "${v}"
 }
 
 # local rm -rf
@@ -100,7 +103,7 @@ _tar() {
 # output things, only when $DEBUG is set
 _debug() {
     if [ -n "${DEBUG}" ] ; then
-        echo "[${ABV_NAME}][DEBUG] ${*}"
+        echo "[${ABV_NAME}][DEBUG] ${*}" >&2
     fi
 }
 
@@ -133,7 +136,7 @@ _error() {
 parse_img_digest() {
     local ref="${1}"
     local digest=""
-    if [ "$(_count '@' "${ref}")" -gt 0 ] ; then
+    if [ "$(_count_char_in_string '@' "${ref}")" -gt 0 ] ; then
         digest="${ref##*@}" # the digest after the "@"
     fi
     echo -n "${digest}"
@@ -147,7 +150,7 @@ parse_img_base() {
     local base="${ref}" # default base is their reference
     local last_word="" # splitting up their reference to get the last word/chunk
     last_word="$(echo "${ref}" | tr '/' '\n' | tail -1 )"
-    if [ "$(_count ':' "${last_word}")" -gt 0 ] ; then
+    if [ "$(_count_char_in_string ':' "${last_word}")" -gt 0 ] ; then
         # which means everything before it is the base image name, **including
         # transport (which could have a port delineation), and even a URI like network ports.
         base="$(echo "${ref}" | rev | cut -d : -f 2 | rev )"
@@ -169,7 +172,7 @@ parse_img_tag() {
 
     local last_word="" # splitting up their reference to get the last word/chunk
     last_word="$(echo "${ref}" | tr '/' '\n' | tail -1 )"
-    if [ "$(_count ':' "${last_word}")" -gt 0 ] ; then
+    if [ "$(_count_char_in_string ':' "${last_word}")" -gt 0 ] ; then
         # if there are colons in the last segment after '/', then get that tag name
         tag="${last_word#*:}" # this parameter expansion removes the prefix pattern before the ':'
     fi
@@ -182,9 +185,14 @@ parse_img_tag() {
 ref_prefix() {
     local ref="${1}"
     local pfxs
+    local ret
 
     # get the supported prefixes of the current version of skopeo
     mapfile -t pfxs < <(skopeo copy --help | grep -A1 "Supported transports:" | grep -v "Supported transports" | sed 's/, /\n/g')
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
 
     for pfx in "${pfxs[@]}" ; do
         if echo "${ref}" | grep -q "^${pfx}:" ; then
@@ -241,6 +249,7 @@ fetch_img() {
     local tag
     local dgst
     local from
+    local ret
 
     _mkdir_p "${dst}"
 
@@ -261,6 +270,10 @@ fetch_img() {
         copy \
         "${from}" \
         "oci:${dst}:${tag}" >&2
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
     echo -n "${dst}:${tag}"
 }
 
@@ -276,7 +289,6 @@ unpack_img() {
         _rm_rf "${unpack_dir}"
     fi
 
-    # TODO perhaps if uid == 0 and podman is present then we can try it?
     if [ -n "$(command -v umoci)" ] ; then
         # can be done as non-root (even in a non-root container)
         unpack_img_umoci "${image_dir}" "${unpack_dir}"
@@ -734,9 +746,9 @@ sourcedriver_rpm_dir() {
     local srcrpm_release
     local mimetype
 
-    if [ -n "${RPM_DIR}" ]; then
+    if [ -n "${SRPM_DIR}" ]; then
         _debug "[$self] writing to $out_dir and $manifest_dir"
-        find "${RPM_DIR}" -type f -name '*src.rpm' | while read -r srcrpm ; do
+        find "${SRPM_DIR}" -type f -name '*src.rpm' | while read -r srcrpm ; do
             cp "${srcrpm}" "${out_dir}"
             srcrpm="$(basename "${srcrpm}")"
             _debug "[$self] --> ${srcrpm}"
@@ -874,7 +886,7 @@ main() {
     local push_image_ref
     local ret
     local rootfs
-    local rpm_dir
+    local srpm_dir
     local src_dir
     local src_img_dir
     local src_img_tag
@@ -916,7 +928,7 @@ main() {
                 push_image_ref=${OPTARG}
                 ;;
             r)
-                rpm_dir=${OPTARG}
+                srpm_dir=${OPTARG}
                 ;;
             D)
                 export DEBUG=1
@@ -937,7 +949,7 @@ main() {
     # specific drivers will expect.
     export CONTEXT_DIR="${CONTEXT_DIR:-$context_dir}"
     export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$extra_src_dir}"
-    export RPM_DIR="${RPM_DIR:-$rpm_dir}"
+    export SRPM_DIR="${SRPM_DIR:-$srpm_dir}"
 
     output_dir="${OUTPUT_DIR:-$output_dir}"
 
@@ -970,6 +982,10 @@ main() {
         if [ ! -d "${work_dir}/layouts/${inspect_image_digest/:/\/}" ] ; then
             # we'll store the image to a path based on its digest, that it can be reused
             img_layout="$(fetch_img "$(parse_img_base "${inspect_image_ref}")":"$(parse_img_tag "${inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/:/\/}" )"
+            ret=$?
+            if [ ${ret} -ne 0 ] ; then
+                _error "failed to copy image: $(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")@${inspect_image_digest}"
+            fi
         else
             img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag "${inspect_image_ref}")"
         fi
@@ -1003,7 +1019,7 @@ main() {
     # setup rootfs, from that OCI layout
     local unpack_dir="${work_dir}/unpacked/${IMAGE_DIGEST/:/\/}"
     if [ ! -d "${unpack_dir}" ] ; then
-        unpack_img ${img_layout} ${unpack_dir}
+        unpack_img "${img_layout}" "${unpack_dir}"
     fi
     _debug "unpacked dir: ${unpack_dir}"
     _debug "rootfs dir: ${rootfs}"

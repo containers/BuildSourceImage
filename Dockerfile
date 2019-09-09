@@ -2,7 +2,7 @@ FROM fedora
 
 RUN dnf install -y jq skopeo findutils file 'dnf-command(download)'
 
-COPY . /usr/local/bin/
+COPY ./BuildSourceImage.sh /usr/local/bin/BuildSourceImage.sh
 
 RUN mkdir -p /output
 ENV OUTPUT_DIR=/output
