@@ -6,8 +6,14 @@ export ABV_NAME="SrcImg"
 # TODO maybe a flag for this?
 export source_image_suffix="-source"
 
+# output version string
+_version() {
+    echo "$(basename "${0}") version 0.1"
+}
 
+# output the cli usage and exit
 _usage() {
+    _version
     echo "Usage: $(basename "$0") [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]"
     echo ""
     echo -e "       -b <path>\tbase path for source image builds"
@@ -20,6 +26,8 @@ _usage() {
     echo -e "       -i <image>\timage reference to fetch and inspect its rootfs to derive sources"
     echo -e "       -p <image>\tpush source image to specified reference after build"
     echo -e "       -D\t\tdebuging output. Can be set via DEBUG env variable"
+    echo -e "       -h\t\tthis usage information"
+    echo -e "       -v\t\tversion"
     exit 1
 }
 
@@ -898,7 +906,7 @@ main() {
 
     base_dir="$(pwd)/${ABV_NAME}"
     # using the bash builtin to parse
-    while getopts ":hlDi:c:s:e:o:b:d:p:" opts; do
+    while getopts ":hlvDi:c:s:e:o:b:d:p:" opts; do
         case "${opts}" in
             b)
                 base_dir="${OPTARG}"
@@ -929,6 +937,10 @@ main() {
                 ;;
             s)
                 srpm_dir=${OPTARG}
+                ;;
+            v)
+                _version
+                exit 0
                 ;;
             D)
                 export DEBUG=1
