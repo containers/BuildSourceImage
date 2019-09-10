@@ -883,18 +883,18 @@ sourcedriver_extra_src_dir() {
 
 main() {
     local base_dir
-    local context_dir
+    local input_context_dir
+    local input_extra_src_dir
+    local input_inspect_image_ref
+    local input_srpm_dir
     local drivers
-    local extra_src_dir
     local image_ref
     local img_layout
-    local inspect_image_ref
     local list_drivers
     local output_dir
     local push_image_ref
     local ret
     local rootfs
-    local srpm_dir
     local src_dir
     local src_img_dir
     local src_img_tag
@@ -912,10 +912,10 @@ main() {
                 base_dir="${OPTARG}"
                 ;;
             c)
-                context_dir=${OPTARG}
+                input_context_dir=${OPTARG}
                 ;;
             e)
-                extra_src_dir=${OPTARG}
+                input_extra_src_dir=${OPTARG}
                 ;;
             d)
                 drivers=${OPTARG}
@@ -924,7 +924,7 @@ main() {
                 _usage
                 ;;
             i)
-                inspect_image_ref=${OPTARG}
+                input_inspect_image_ref=${OPTARG}
                 ;;
             l)
                 list_drivers=1
@@ -936,7 +936,7 @@ main() {
                 push_image_ref=${OPTARG}
                 ;;
             s)
-                srpm_dir=${OPTARG}
+                input_srpm_dir=${OPTARG}
                 ;;
             v)
                 _version
@@ -957,11 +957,16 @@ main() {
         exit 0
     fi
 
+    # "local" variables are not set in `env`, but are seen in `set`
+    if [ "$(set | grep -c '^input_')" -eq 0 ] ; then
+        _error "provide an input (example: $(basename "${0}") -i docker.io/centos -e ./my-sources/ )"
+    fi
+
     # These three variables are slightly special, in that they're globals that
     # specific drivers will expect.
-    export CONTEXT_DIR="${CONTEXT_DIR:-$context_dir}"
-    export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$extra_src_dir}"
-    export SRPM_DIR="${SRPM_DIR:-$srpm_dir}"
+    export CONTEXT_DIR="${CONTEXT_DIR:-$input_context_dir}"
+    export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$input_extra_src_dir}"
+    export SRPM_DIR="${SRPM_DIR:-$input_srpm_dir}"
 
     output_dir="${OUTPUT_DIR:-$output_dir}"
 
@@ -976,16 +981,16 @@ main() {
     image_ref=""
     src_dir=""
     work_dir="${base_dir}/work"
-    if [ -n "${inspect_image_ref}" ] ; then
-        _debug "Image Reference provided: ${inspect_image_ref}"
-        _debug "Image Reference base: $(parse_img_base "${inspect_image_ref}")"
-        _debug "Image Reference tag: $(parse_img_tag "${inspect_image_ref}")"
+    if [ -n "${input_inspect_image_ref}" ] ; then
+        _debug "Image Reference provided: ${input_inspect_image_ref}"
+        _debug "Image Reference base: $(parse_img_base "${input_inspect_image_ref}")"
+        _debug "Image Reference tag: $(parse_img_tag "${input_inspect_image_ref}")"
 
-        inspect_image_digest="$(parse_img_digest "${inspect_image_ref}")"
+        inspect_image_digest="$(parse_img_digest "${input_inspect_image_ref}")"
         # determine missing digest before fetch, so that we fetch the precise image
         # including its digest.
         if [ -z "${inspect_image_digest}" ] ; then
-            inspect_image_digest="$(fetch_img_digest "$(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")")"
+            inspect_image_digest="$(fetch_img_digest "$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")")"
         fi
         _debug "inspect_image_digest: ${inspect_image_digest}"
 
@@ -993,13 +998,13 @@ main() {
         # if inspect and fetch image, then to an OCI layout dir
         if [ ! -d "${work_dir}/layouts/${inspect_image_digest/:/\/}" ] ; then
             # we'll store the image to a path based on its digest, that it can be reused
-            img_layout="$(fetch_img "$(parse_img_base "${inspect_image_ref}")":"$(parse_img_tag "${inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/:/\/}" )"
+            img_layout="$(fetch_img "$(parse_img_base "${input_inspect_image_ref}")":"$(parse_img_tag "${input_inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/:/\/}" )"
             ret=$?
             if [ ${ret} -ne 0 ] ; then
-                _error "failed to copy image: $(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")@${inspect_image_digest}"
+                _error "failed to copy image: $(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
             fi
         else
-            img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag "${inspect_image_ref}")"
+            img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag "${input_inspect_image_ref}")"
         fi
         _debug "image layout: ${img_layout}"
 
@@ -1015,7 +1020,7 @@ main() {
         fi
 
         rootfs="${unpack_dir}/rootfs"
-        image_ref="$(parse_img_base "${inspect_image_ref}"):$(parse_img_tag "${inspect_image_ref}")@${inspect_image_digest}"
+        image_ref="$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
         src_dir="${base_dir}/src/${inspect_image_digest/:/\/}"
         work_dir="${base_dir}/work/${inspect_image_digest/:/\/}"
         _info "inspecting image reference ${image_ref}"
@@ -1094,8 +1099,8 @@ main() {
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
         _mkdir_p "${output_dir}"
-        # XXX this $inspect_image_ref currently relies on the user passing in the `-i` flag
-        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${inspect_image_ref}")")"
+        # XXX this $input_inspect_image_ref currently relies on the user passing in the `-i` flag
+        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${input_inspect_image_ref}")")"
     fi
 
     if [ -n "${push_image_ref}" ] ; then
