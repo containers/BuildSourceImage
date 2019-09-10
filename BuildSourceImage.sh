@@ -13,7 +13,7 @@ _usage() {
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
-    echo -e "       -r <path>\tdirectory of SRPMS to add. Can be provided via SRPM_DIR env variable"
+    echo -e "       -s <path>\tdirectory of SRPMS to add. Can be provided via SRPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\tenumerate specific source drivers to run"
     echo -e "       -l\t\tlist the source drivers available"
@@ -898,7 +898,7 @@ main() {
 
     base_dir="$(pwd)/${ABV_NAME}"
     # using the bash builtin to parse
-    while getopts ":hlDi:c:r:e:o:b:d:p:" opts; do
+    while getopts ":hlDi:c:s:e:o:b:d:p:" opts; do
         case "${opts}" in
             b)
                 base_dir="${OPTARG}"
@@ -927,7 +927,7 @@ main() {
             p)
                 push_image_ref=${OPTARG}
                 ;;
-            r)
+            s)
                 srpm_dir=${OPTARG}
                 ;;
             D)
