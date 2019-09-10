@@ -1032,13 +1032,6 @@ main() {
         work_dir="$(_mktemp_d)"
     fi
     _debug "image layout: ${img_layout}"
-
-    # setup rootfs, from that OCI layout
-    local unpack_dir="${work_dir}/unpacked/${IMAGE_DIGEST/:/\/}"
-    if [ ! -d "${unpack_dir}" ] ; then
-        unpack_img "${img_layout}" "${unpack_dir}"
-    fi
-    _debug "unpacked dir: ${unpack_dir}"
     _debug "rootfs dir: ${rootfs}"
 
     # clear prior driver's info about source to insert into Source Image
