@@ -3,7 +3,8 @@ sudo: required
 before_install:
         - sudo add-apt-repository ppa:projectatomic/ppa --yes
         - sudo apt-get update -qq
-        - sudo apt-get install -qq shellcheck skopeo
+        - sudo apt-get install -qq podman shellcheck skopeo
 
 script:
         - make validate
+        - make build-container

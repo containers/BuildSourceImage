@@ -1,4 +1,4 @@
-FROM fedora
+FROM docker.io/library/fedora:latest
 
 RUN dnf install -y jq skopeo findutils file 'dnf-command(download)'
 
