@@ -28,7 +28,6 @@ _usage() {
     echo -e "       -D\t\tdebuging output. Can be set via DEBUG env variable"
     echo -e "       -h\t\tthis usage information"
     echo -e "       -v\t\tversion"
-    exit 1
 }
 
 # sanity checks on startup
@@ -922,6 +921,7 @@ main() {
                 ;;
             h)
                 _usage
+                exit 0
                 ;;
             i)
                 input_inspect_image_ref=${OPTARG}
@@ -947,6 +947,7 @@ main() {
                 ;;
             *)
                 _usage
+                exit 1
                 ;;
         esac
     done
