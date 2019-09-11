@@ -1,10 +1,17 @@
 sudo: required
 
+services:
+        - docker
+
+env:
+        - CTR_ENGINE=docker
+
 before_install:
-        - sudo add-apt-repository ppa:projectatomic/ppa --yes
+        - sudo add-apt-repository ppa:duggan/bats --yes
         - sudo apt-get update -qq
-        - sudo apt-get install -qq podman shellcheck skopeo
+        - sudo apt-get install -qq bats shellcheck
 
 script:
         - make validate
         - make build-container
+        - make test-integration
