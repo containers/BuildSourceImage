@@ -2,8 +2,7 @@
 
 @test "Help" {
 	run $CTR_ENGINE run --rm $CTR_IMAGE -h
-	[ "$status" -eq 1 ]
-	#TODO: we should exit 0
+	[ "$status" -eq 0 ]
 	[[ ${lines[0]} =~ "BuildSourceImage.sh version " ]]
 	[[ ${lines[1]} =~ "Usage: BuildSourceImage.sh " ]]
 }
