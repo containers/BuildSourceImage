@@ -1049,10 +1049,11 @@ main() {
     src_img_tag="latest-source" # XXX this tag needs to be a reference to the image built from
     layout_new "${src_img_dir}" "${src_img_tag}"
 
+    _info "calling source collection drivers"
     # iterate on the drivers
     #for driver in sourcedriver_rpm_fetch ; do
     for driver in ${drivers} ; do
-        _info "calling $driver"
+        _info " --> ${driver#sourcedriver_*}"
         _mkdir_p "${src_dir}/${driver#sourcedriver_*}"
         _mkdir_p "${work_dir}/driver/${driver#sourcedriver_*}"
         $driver \
