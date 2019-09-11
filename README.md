@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/containers/BuildSourceImage.svg?branch=master)](https://travis-ci.org/containers/BuildSourceImage)
+
 # BuildSourceImage
 
 Tool to build a source image.
