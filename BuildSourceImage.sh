@@ -976,6 +976,10 @@ main() {
         _rm_rf "${TMPDIR}"
     fi
     _mkdir_p "${TMPDIR}"
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        _error "failed to mkdir ${TMP}"
+    fi
 
     # setup rootfs to be inspected (if any)
     rootfs=""
