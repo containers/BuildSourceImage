@@ -1096,6 +1096,7 @@ main() {
         _mkdir_p "${output_dir}"
         # XXX this $input_inspect_image_ref currently relies on the user passing in the `-i` flag
         push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${input_inspect_image_ref}")")"
+        _info "copied to oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${input_inspect_image_ref}")")"
     fi
 
     if [ -n "${push_image_ref}" ] ; then
