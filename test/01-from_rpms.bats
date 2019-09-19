@@ -1,8 +1,10 @@
 #!/usr/bin/env bats -t
 
+load helpers
+
 @test "build from RPMS" {
 	d=$(mktemp -d)
-	run $CTR_ENGINE run --rm -v $(pwd)/.testprep/srpms/:/src:ro -v ${d}:/output/ $CTR_IMAGE -s /src 
+	run_ctr -v $(pwd)/.testprep/srpms/:/src:ro -v ${d}:/output/ $CTR_IMAGE -s /src 
 	[ "$status" -eq 0 ]
 	#echo ${lines[@]}
 	[[ ${lines[0]} =~ "[SrcImg][INFO] calling source collection drivers" ]]
