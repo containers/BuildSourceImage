@@ -28,9 +28,12 @@ Usage: BuildSourceImage.sh [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] 
 
 ```
 
-It also nicely usable inside a container
+Nicely usable inside a container:
+
 ```bash
-$> buildah build-using-dockerfile -t containers/buildsourceimage .
+$> podman build -t containers/buildsourceimage .
+$> mkdir ./output/
+$> podman run -it -v $(pwd)/output/:/output/ -v $(pwd)/SRCRPMS/:/data/ -u $(id -u) containers/buildsourceimage -s /data/
 ```
 
 ## Examples
@@ -45,4 +48,3 @@ $> buildah build-using-dockerfile -t containers/buildsourceimage .
 * Build a source code image from a collection of known `.src.rpm`'s
 * Include additional build context into the source image
 * Include extra sources use
-

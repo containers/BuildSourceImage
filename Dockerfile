@@ -8,4 +8,4 @@ RUN mkdir -p /output
 ENV OUTPUT_DIR=/output
 VOLUME /output
 
-ENTRYPOINT ["/usr/local/bin/BuildSourceImage.sh"]
+ENTRYPOINT ["/usr/local/bin/BuildSourceImage.sh", "-b", "/tmp/"]
