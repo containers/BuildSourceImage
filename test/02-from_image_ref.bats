@@ -8,7 +8,7 @@ load helpers
     echo "temporary directory: ${d}"
 
     ref="registry.fedoraproject.org/fedora-minimal"
-	run_ctr -v ${d}:/output/ $CTR_IMAGE -i "${ref}"
+	run_ctr --mount type=bind,source=${d},destination=/output $CTR_IMAGE -i "${ref}"
 	[ "$status" -eq 0 ]
 	#echo ${lines[@]}
 	[[ ${lines[0]} =~ "Getting image source signatures" ]]
