@@ -3,7 +3,10 @@
 load helpers
 
 @test "Build from image reference" {
-	d=$(mktemp -d)
+    local d
+    d=$(mktemp -d)
+    echo "temporary directory: ${d}"
+
     ref="registry.fedoraproject.org/fedora-minimal"
 	run_ctr -v ${d}:/output/ $CTR_IMAGE -i "${ref}"
 	[ "$status" -eq 0 ]
