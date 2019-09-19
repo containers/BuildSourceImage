@@ -1,6 +1,7 @@
 SRC := ./BuildSourceImage.sh
 CTR_IMAGE := localhost/containers/buildsourceimage
 CTR_ENGINE ?= podman
+BATS_OPTS ?=
 cleanfiles =
 # these are packages whose src.rpms are very small
 srpm_urls = \
@@ -8,6 +9,9 @@ srpm_urls = \
 	https://archive.kernel.org/centos-vault/7.0.1406/os/Source/SPackages/rootfiles-8.1-11.el7.src.rpm \
 	https://archive.kernel.org/centos-vault/7.0.1406/os/Source/SPackages/centos-bookmarks-7-1.el7.src.rpm
 srpms = $(addprefix ./.testprep/srpms/,$(notdir $(rpms)))
+
+export CTR_IMAGE
+export CTR_ENGINE
 
 all: validate
 
@@ -35,7 +39,7 @@ cleanfiles += .testprep $(srpms)
 test-integration: .build-container .testprep
 	@echo
 	@echo "==> Running integration tests"
-	CTR_IMAGE=$(CTR_IMAGE) CTR_ENGINE=$(CTR_ENGINE) TMPDIR=$(shell realpath .testprep/tmp) bats test/
+	TMPDIR=$(shell realpath .testprep/tmp) bats $(BATS_OPTS) test/
 
 
 clean:
