@@ -8,7 +8,7 @@ export source_image_suffix="-source"
 
 # output version string
 _version() {
-    echo "$(basename "${0}") version 0.1"
+    echo "$(basename "${0}") version 0.2.0-dev"
 }
 
 # output the cli usage and exit
