@@ -537,6 +537,72 @@ layout_insert() {
     local tar_path="${3}"
     local annotations_file="${4}"
     local image_tag="${5:-latest}"
+    local ret
+
+    if [ -n "$(command -v umoci)" ] ; then
+        layout_insert_umoci "${out_dir}" "${artifact_path}" "${tar_path}" "${annotations_file}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    else
+        layout_insert_bash "${out_dir}" "${artifact_path}" "${tar_path}" "${annotations_file}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    fi
+}
+
+layout_insert_umoci() {
+    local out_dir="${1}"
+    local artifact_path="${2}"
+    local tar_path="${3}"
+    local annotations_file="${4}"
+    local image_tag="${5:-latest}"
+    local sum
+    local ret
+
+    # prep the blob path for inside the layer, so we can just copy that whole path in
+    tmpdir="$(_mktemp_d)"
+
+    # TODO account for "artifact_path" being a directory?
+    sum="$(sha256sum "${artifact_path}" | awk '{ print $1 }')"
+
+    _mkdir_p "${tmpdir}/blobs/sha256"
+    cp "${artifact_path}" "${tmpdir}/blobs/sha256/${sum}"
+    if [ "$(basename "${tar_path}")" == "$(basename "${artifact_path}")" ] ; then
+        _mkdir_p "${tmpdir}/$(dirname "${tar_path}")"
+        # TODO this symlink need to be relative path, not to `/blobs/...`
+        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}"
+    else
+        _mkdir_p "${tmpdir}/${tar_path}"
+        # TODO this symlink need to be relative path, not to `/blobs/...`
+        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename "${artifact_path}")"
+    fi
+
+    # XXX currently does not support adding the rich annotations like I've done with the _bash
+    # https://github.com/openSUSE/umoci/issues/298
+    # XXX this insert operation can not disable compression
+    # https://github.com/openSUSE/umoci/issues/300
+    umoci insert \
+        --rootless \
+        --image "${out_dir}:${image_tag}" \
+        --history.created "$(_date_ns)" \
+        --history.comment "#(nop) $(_version) adding artifact: ${sum}" \
+        "${tmpdir}" "/"
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
+}
+
+layout_insert_bash() {
+    local out_dir="${1}"
+    local artifact_path="${2}"
+    local tar_path="${3}"
+    local annotations_file="${4}"
+    local image_tag="${5:-latest}"
     local mnfst_list
     local mnfst_dgst
     local mnfst
@@ -600,7 +666,7 @@ layout_insert() {
     jq -c \
         --arg date "$(_date_ns)" \
         --arg tmptar_sum "sha256:${tmptar_sum}" \
-        --arg comment "#(nop) BuildSourceImage adding artifact: ${sum}" \
+        --arg comment "#(nop) $(_version) adding artifact: ${sum}" \
         '
         .created = $date
         | .rootfs.diff_ids += [ $tmptar_sum ]
