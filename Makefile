@@ -39,7 +39,7 @@ cleanfiles += .testprep $(srpms)
 test-integration: .build-container .testprep
 	@echo
 	@echo "==> Running integration tests"
-	TMPDIR=$(shell realpath .testprep/tmp) bats $(BATS_OPTS) test/
+	TMPDIR=$(realpath .testprep/tmp) bats $(BATS_OPTS) test/
 
 
 clean:
