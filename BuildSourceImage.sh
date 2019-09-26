@@ -412,10 +412,60 @@ push_img() {
 layout_new() {
     local out_dir="${1}"
     local image_tag="${2:-latest}"
+    local ret
+
+    if [ -n "$(command -v umoci)" ] ; then
+        layout_new_umoci "${out_dir}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    else
+        layout_new_bash "${out_dir}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    fi
+}
+
+#
+# sets up new OCI layout, using `umoci`
+#
+layout_new_umoci() {
+    local out_dir="${1}"
+    local image_tag="${2:-latest}"
+    local ret
+
+    # umoci expects the layout path to _not_ exist and will fail if it does exist
+    _rm_rf "${out_dir}"
+
+    umoci init --layout "${out_dir}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
+
+    # XXX currently does not support adding the rich annotations like I've done with the _bash
+    # https://github.com/openSUSE/umoci/issues/298
+    umoci new --image "${out_dir}:${image_tag}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
+}
+
+#
+# sets up new OCI layout, all with bash and jq
+#
+layout_new_bash() {
+    local out_dir="${1}"
+    local image_tag="${2:-latest}"
     local config
     local mnfst
     local config_sum
     local mnfst_sum
+    local ret
 
     _mkdir_p "${out_dir}/blobs/sha256"
     echo '{"imageLayoutVersion":"1.0.0"}' > "${out_dir}/oci-layout"
@@ -432,7 +482,15 @@ layout_new() {
 }
     '
     config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
     echo "${config}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${config_sum}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
 
     mnfst='
 {
