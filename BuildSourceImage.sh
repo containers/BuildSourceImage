@@ -28,6 +28,10 @@ _usage() {
     echo -e "       -D\t\tdebuging output. Can be set via DEBUG env variable"
     echo -e "       -h\t\tthis usage information"
     echo -e "       -v\t\tversion"
+    echo -e ""
+    echo -e "    Subcommands:"
+    echo -e "       unpack\tUnpack an OCI layout to a rootfs directory"
+    echo -e ""
 }
 
 # sanity checks on startup
@@ -42,6 +46,23 @@ _init() {
             _error "please install package to provide '${cmd}'"
         fi
     done
+}
+
+# enable access to some of functions as subcommands!
+_subcommand() {
+    local command="${1}"
+    local ret
+
+    shift
+
+    case "${command}" in
+        unpack)
+            # (vb) i'd prefer this subcommand directly match the function name, but it isn't as pretty.
+            unpack_img "${@}"
+            ret=$?
+            exit "${ret}"
+            ;;
+    esac
 }
 
 # _is_sourced tests whether this script is being source, or executed directly
@@ -292,6 +313,20 @@ unpack_img() {
     local unpack_dir="${2}"
     local ret
 
+    while getopts ":h" opts; do
+        case "${opts}" in
+            *)
+                echo "$0 unpack <oci layout path> <unpack path>"
+                return 1
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+
+    if [ -z "${image_dir}" ] || [ -z "${unpack_dir}" ] ; then
+        _error "[unpack_img] blank arguments provided"
+    fi
+
     if [ -d "${unpack_dir}" ] ; then
         _rm_rf "${unpack_dir}"
     fi
@@ -336,9 +371,10 @@ unpack_img_bash() {
         return ${ret}
     fi
 
-    # Since we're landing the reference as an OCI layout, this mediaType is fairly predictable
-    # TODO don't always assume +gzip
-    layer_dgsts="$(jq '.layers[] | select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip") | .digest' "${image_dir}"/blobs/"${mnfst_dgst/:/\/}" | tr -d \")"
+    # TODO this will need to be refactored when we start seeing +zstd layers.
+    # Then it will be better to no just get a list of digests, but maybe to
+    # iterate on each descriptor independently?
+    layer_dgsts="$(jq '.layers | map(select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip"),select(.mediaType == "application/vnd.oci.image.layer.v1.tar"),select(.mediaType == "application/vnd.docker.image.rootfs.diff.tar.gzip")) | .[] | .digest' "${image_dir}"/blobs/"${mnfst_dgst/:/\/}" | tr -d \")"
     ret=$?
     if [ ${ret} -ne 0 ] ; then
         return ${ret}
@@ -1026,8 +1062,9 @@ main() {
     local work_dir
 
     _init "${@}"
+    _subcommand "${@}"
 
-    base_dir="$(pwd)/${ABV_NAME}"
+    base_dir="${BASE_DIR:-$(pwd)/${ABV_NAME}}"
     # using the bash builtin to parse
     while getopts ":hlvDi:c:s:e:o:b:d:p:" opts; do
         case "${opts}" in
