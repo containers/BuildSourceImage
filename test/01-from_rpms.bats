@@ -7,7 +7,7 @@ load helpers
 	d=$(mktemp -d)
 	echo "temporary directory: ${d}"
 
-	run_ctr -v $(pwd)/.testprep/srpms/:/src:ro --mount type=bind,source=${d},destination=/output $CTR_IMAGE -s /src
+	run_ctr -v $(pwd)/.testprep/srpms/:/src:ro --mount type=bind,source=${d},destination=/output $CTR_IMAGE -s /src -o /output
 	[ "$status" -eq 0 ]
 	[[ ${lines[0]} =~ "[SrcImg][INFO] calling source collection drivers" ]]
 	# get the number of the last line
