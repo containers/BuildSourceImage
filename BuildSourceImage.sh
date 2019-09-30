@@ -412,10 +412,60 @@ push_img() {
 layout_new() {
     local out_dir="${1}"
     local image_tag="${2:-latest}"
+    local ret
+
+    if [ -n "$(command -v umoci)" ] ; then
+        layout_new_umoci "${out_dir}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    else
+        layout_new_bash "${out_dir}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    fi
+}
+
+#
+# sets up new OCI layout, using `umoci`
+#
+layout_new_umoci() {
+    local out_dir="${1}"
+    local image_tag="${2:-latest}"
+    local ret
+
+    # umoci expects the layout path to _not_ exist and will fail if it does exist
+    _rm_rf "${out_dir}"
+
+    umoci init --layout "${out_dir}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
+
+    # XXX currently does not support adding the rich annotations like I've done with the _bash
+    # https://github.com/openSUSE/umoci/issues/298
+    umoci new --image "${out_dir}:${image_tag}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
+}
+
+#
+# sets up new OCI layout, all with bash and jq
+#
+layout_new_bash() {
+    local out_dir="${1}"
+    local image_tag="${2:-latest}"
     local config
     local mnfst
     local config_sum
     local mnfst_sum
+    local ret
 
     _mkdir_p "${out_dir}/blobs/sha256"
     echo '{"imageLayoutVersion":"1.0.0"}' > "${out_dir}/oci-layout"
@@ -432,7 +482,15 @@ layout_new() {
 }
     '
     config_sum=$(echo "${config}" | jq -c | tr -d '\n' | sha256sum | awk '{ ORS=""; print $1 }')
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
     echo "${config}" | jq -c | tr -d '\n' > "${out_dir}/blobs/sha256/${config_sum}"
+    ret=$?
+    if [ "${ret}" -ne 0 ] ; then
+        return "${ret}"
+    fi
 
     mnfst='
 {
@@ -474,6 +532,72 @@ layout_new() {
 #   * tag used in the layout (default is 'latest')
 #
 layout_insert() {
+    local out_dir="${1}"
+    local artifact_path="${2}"
+    local tar_path="${3}"
+    local annotations_file="${4}"
+    local image_tag="${5:-latest}"
+    local ret
+
+    if [ -n "$(command -v umoci)" ] ; then
+        layout_insert_umoci "${out_dir}" "${artifact_path}" "${tar_path}" "${annotations_file}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    else
+        layout_insert_bash "${out_dir}" "${artifact_path}" "${tar_path}" "${annotations_file}" "${image_tag}"
+        ret=$?
+        if [ ${ret} -ne 0 ] ; then
+            return ${ret}
+        fi
+    fi
+}
+
+layout_insert_umoci() {
+    local out_dir="${1}"
+    local artifact_path="${2}"
+    local tar_path="${3}"
+    local annotations_file="${4}"
+    local image_tag="${5:-latest}"
+    local sum
+    local ret
+
+    # prep the blob path for inside the layer, so we can just copy that whole path in
+    tmpdir="$(_mktemp_d)"
+
+    # TODO account for "artifact_path" being a directory?
+    sum="$(sha256sum "${artifact_path}" | awk '{ print $1 }')"
+
+    _mkdir_p "${tmpdir}/blobs/sha256"
+    cp "${artifact_path}" "${tmpdir}/blobs/sha256/${sum}"
+    if [ "$(basename "${tar_path}")" == "$(basename "${artifact_path}")" ] ; then
+        _mkdir_p "${tmpdir}/$(dirname "${tar_path}")"
+        # TODO this symlink need to be relative path, not to `/blobs/...`
+        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}"
+    else
+        _mkdir_p "${tmpdir}/${tar_path}"
+        # TODO this symlink need to be relative path, not to `/blobs/...`
+        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename "${artifact_path}")"
+    fi
+
+    # XXX currently does not support adding the rich annotations like I've done with the _bash
+    # https://github.com/openSUSE/umoci/issues/298
+    # XXX this insert operation can not disable compression
+    # https://github.com/openSUSE/umoci/issues/300
+    umoci insert \
+        --rootless \
+        --image "${out_dir}:${image_tag}" \
+        --history.created "$(_date_ns)" \
+        --history.comment "#(nop) $(_version) adding artifact: ${sum}" \
+        "${tmpdir}" "/"
+    ret=$?
+    if [ ${ret} -ne 0 ] ; then
+        return ${ret}
+    fi
+}
+
+layout_insert_bash() {
     local out_dir="${1}"
     local artifact_path="${2}"
     local tar_path="${3}"
@@ -542,7 +666,7 @@ layout_insert() {
     jq -c \
         --arg date "$(_date_ns)" \
         --arg tmptar_sum "sha256:${tmptar_sum}" \
-        --arg comment "#(nop) BuildSourceImage adding artifact: ${sum}" \
+        --arg comment "#(nop) $(_version) adding artifact: ${sum}" \
         '
         .created = $date
         | .rootfs.diff_ids += [ $tmptar_sum ]
