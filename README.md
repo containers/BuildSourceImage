@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/containers/BuildSourceImage.svg?branch=master)](https://travis-ci.org/containers/BuildSourceImage)
+[![Container Image Repository on Quay](https://quay.io/repository/vbatts/bsi/status "Container Image Repository on Quay")](https://quay.io/repository/vbatts/bsi)
 
 # BuildSourceImage
 
