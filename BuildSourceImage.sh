@@ -1120,6 +1120,10 @@ main() {
         # including its digest.
         if [ -z "${inspect_image_digest}" ] ; then
             inspect_image_digest="$(fetch_img_digest "$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")")"
+            ret=$?
+            if [ ${ret} -ne 0 ] ; then
+                _error "failed to detect image digest"
+            fi
         fi
         _debug "inspect_image_digest: ${inspect_image_digest}"
 
