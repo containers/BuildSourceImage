@@ -3,6 +3,7 @@
 load helpers
 
 @test "Build from image reference" {
+	#skip "this takes like 20min ..."
     local d
     d=$(mktemp -d)
     echo "temporary directory: ${d}"
