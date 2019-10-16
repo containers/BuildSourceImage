@@ -677,11 +677,11 @@ layout_insert_bash() {
     if [ "$(basename "${tar_path}")" == "$(basename "${artifact_path}")" ] ; then
         _mkdir_p "${tmpdir}/$(dirname "${tar_path}")"
         # TODO this symlink need to be relative path, not to `/blobs/...`
-        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}"
+        ln -s "../blobs/sha256/${sum}" "${tmpdir}/${tar_path}"
     else
         _mkdir_p "${tmpdir}/${tar_path}"
         # TODO this symlink need to be relative path, not to `/blobs/...`
-        ln -s "/blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename "${artifact_path}")"
+        ln -s "../blobs/sha256/${sum}" "${tmpdir}/${tar_path}/$(basename "${artifact_path}")"
     fi
     tmptar="$(_mktemp)"
 
