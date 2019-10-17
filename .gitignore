@@ -2,3 +2,5 @@
 .build-container
 .testprep
 .validate
+*.rpm
+x86_64/
