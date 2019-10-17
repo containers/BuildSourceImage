@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/containers/BuildSourceImage.svg?branch=master)](https://travis-ci.org/containers/BuildSourceImage)
-[![Container Image Repository on Quay](https://quay.io/repository/vbatts/bsi/status "Container Image Repository on Quay")](https://quay.io/repository/vbatts/bsi)
+[![Container Image Repository on Quay](https://quay.io/repository/ctrs/bsi/status "Container Image Repository on Quay")](https://quay.io/repository/ctrs/bsi)
 
 # BuildSourceImage
 
@@ -32,9 +32,8 @@ Usage: BuildSourceImage.sh [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] 
 Nicely usable inside a container:
 
 ```bash
-$> podman build -t containers/buildsourceimage .
 $> mkdir ./output/
-$> podman run -it -v $(pwd)/output/:/output/ -v $(pwd)/SRCRPMS/:/data/ -u $(id -u) containers/buildsourceimage -s /data/
+$> podman run -it -v $(pwd)/output/:/output/ -v $(pwd)/SRCRPMS/:/data/ -u $(id -u) quay.io/ctrs/bsi -s /data/ -o /output/
 ```
 
 ## Examples
