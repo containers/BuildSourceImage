@@ -16,6 +16,8 @@ _usage() {
     _version
     echo "Usage: $(basename "$0") [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]"
     echo ""
+    echo "          Container Source Image tool"
+    echo ""
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
     echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
@@ -125,6 +127,14 @@ _tar() {
         tar -v "${@}"
     else
         tar "${@}"
+    fi
+}
+
+_rpm_download() {
+    if [ "$(command -v yumdownloader)" != "" ] ; then
+        yumdownloader "${@}"
+    else
+        dnf download "${@}"
     fi
 }
 
@@ -841,7 +851,7 @@ sourcedriver_rpm_fetch() {
         rpm=${srcrpm%*.src.rpm}
         if [ ! -f "${out_dir}/${srcrpm}" ] ; then
             _debug "--> fetching ${srcrpm}"
-            dnf download \
+            _rpm_download \
                 --quiet \
                 --installroot "${rootfs}" \
                 --release "${release}" \
