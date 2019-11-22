@@ -32,4 +32,8 @@ teardown() {
 	[ -f "${d}/blobs/sha256/549ac1e4eb73e55781f39f4b8ee08c1158f1b1c1a523cf278d602386613e2f12" ]
 	[ -f "${d}/blobs/sha256/b5d5efc6c334cc52223eaea4ac046f21f089c3088b6abb4de027339e5e6dce4b" ]
 	[ -f "${d}/blobs/sha256/ce0608ce0a601a4cac453b0a0e181cac444027d800a26d5b44b80a74c6dc94e8" ]
+
+	# now let's pull the image with skopeo
+	mkdir ${d}/pull
+	run skopeo copy --src-tls-verify=false docker://localhost:5000/output:latest-source dir:${d}/pull
 }
