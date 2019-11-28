@@ -384,7 +384,7 @@ unpack_img_bash() {
     # TODO this will need to be refactored when we start seeing +zstd layers.
     # Then it will be better to no just get a list of digests, but maybe to
     # iterate on each descriptor independently?
-    layer_dgsts="$(jq '.layers | map(select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip"),select(.mediaType == "application/vnd.oci.image.layer.v1.tar"),select(.mediaType == "application/vnd.docker.image.rootfs.diff.tar.gzip")) | .[] | .digest' "${image_dir}"/blobs/"${mnfst_dgst/:/\/}" | tr -d \")"
+    layer_dgsts="$(jq '.layers | map(select(.mediaType == "application/vnd.oci.image.layer.v1.tar+gzip"),select(.mediaType == "application/vnd.oci.image.layer.v1.tar"),select(.mediaType == "application/vnd.docker.image.rootfs.diff.tar.gzip")) | .[] | .digest' "${image_dir}"/blobs/"${mnfst_dgst/://}" | tr -d \")"
     ret=$?
     if [ ${ret} -ne 0 ] ; then
         return ${ret}
@@ -392,7 +392,7 @@ unpack_img_bash() {
 
     _mkdir_p "${unpack_dir}/rootfs"
     for dgst in ${layer_dgsts} ; do
-        path="${image_dir}/blobs/${dgst/:/\/}"
+        path="${image_dir}/blobs/${dgst/://}"
         tmp_file=$(_mktemp)
         zcat "${path}" | _tar -t > "$tmp_file"
 
@@ -674,7 +674,7 @@ layout_insert_bash() {
         |  select(.annotations."org.opencontainers.image.ref.name" == $tag )
         | .digest
     ' "${mnfst_list}" | tr -d \" | tr -d '\n' )"
-    mnfst="${out_dir}/blobs/${mnfst_dgst/:/\/}"
+    mnfst="${out_dir}/blobs/${mnfst_dgst/://}"
     test -f "${mnfst}" || return 1
 
     # make tar of new object
@@ -722,8 +722,8 @@ layout_insert_bash() {
                 "created_by": $comment
             }
         ]
-        ' "${out_dir}/blobs/${config_sum/:/\/}" > "${tmpconfig}"
-    _rm_rf "${out_dir}/blobs/${config_sum/:/\/}"
+        ' "${out_dir}/blobs/${config_sum/://}" > "${tmpconfig}"
+    _rm_rf "${out_dir}/blobs/${config_sum/://}"
 
     # rename the config blob to its new checksum
     tmpconfig_sum="$(sha256sum "${tmpconfig}" | awk '{ ORS=""; print $1 }')"
@@ -1176,20 +1176,20 @@ main() {
 
         img_layout=""
         # if inspect and fetch image, then to an OCI layout dir
-        if [ ! -d "${work_dir}/layouts/${inspect_image_digest/:/\/}" ] ; then
+        if [ ! -d "${work_dir}/layouts/${inspect_image_digest/://}" ] ; then
             # we'll store the image to a path based on its digest, that it can be reused
-            img_layout="$(fetch_img "$(parse_img_base "${input_inspect_image_ref}")":"$(parse_img_tag "${input_inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/:/\/}" )"
+            img_layout="$(fetch_img "$(parse_img_base "${input_inspect_image_ref}")":"$(parse_img_tag "${input_inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/://}" )"
             ret=$?
             if [ ${ret} -ne 0 ] ; then
                 _error "failed to copy image: $(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
             fi
         else
-            img_layout="${work_dir}/layouts/${inspect_image_digest/:/\/}:$(parse_img_tag "${input_inspect_image_ref}")"
+            img_layout="${work_dir}/layouts/${inspect_image_digest/://}:$(parse_img_tag "${input_inspect_image_ref}")"
         fi
         _debug "image layout: ${img_layout}"
 
         # unpack or reuse fetched image
-        unpack_dir="${work_dir}/unpacked/${inspect_image_digest/:/\/}"
+        unpack_dir="${work_dir}/unpacked/${inspect_image_digest/://}"
         if [ -d "${unpack_dir}" ] ; then
             _rm_rf "${unpack_dir}"
         fi
@@ -1201,8 +1201,8 @@ main() {
 
         rootfs="${unpack_dir}/rootfs"
         image_ref="$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
-        src_dir="${base_dir}/src/${inspect_image_digest/:/\/}"
-        work_dir="${base_dir}/work/${inspect_image_digest/:/\/}"
+        src_dir="${base_dir}/src/${inspect_image_digest/://}"
+        work_dir="${base_dir}/work/${inspect_image_digest/://}"
         _info "inspecting image reference ${image_ref}"
     else
         # if we're not fething an image, then this is basically a nop
