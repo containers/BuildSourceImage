@@ -1,0 +1,7 @@
+---
+
+# TODO: This is just a placeholder / noop for now
+placeholder_task:
+    container:
+        image: alpine
+    noop_script: true
