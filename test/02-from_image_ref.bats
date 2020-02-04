@@ -4,18 +4,19 @@ load helpers
 
 @test "Build from image reference" {
 	#skip "this takes like 20min ..."
-    local d
-    d=$(mktemp -d)
-    echo "temporary directory: ${d}"
+	local d
+	d=$(mktemp -d)
+	echo "temporary directory: ${d}"
 
-    ref="registry.fedoraproject.org/fedora-minimal"
+	ref="docker.io/fedora"
 	run_ctr --mount type=bind,source=${d},destination=/output $CTR_IMAGE -i "${ref}" -o /output
+	echo ${lines}
 	[ "$status" -eq 0 ]
 	#echo ${lines[@]}
 	[[ ${lines[0]} =~ "Getting image source signatures" ]]
 	[[ ${lines[1]} =~ "Copying blob " ]]
 	[[ ${lines[5]} =~ "[SrcImg][INFO] [unpacking] layer sha256:" ]]
-    [[ ${lines[6]} =~ "[SrcImg][INFO] inspecting image reference ${ref}:" ]]
+	[[ ${lines[6]} =~ "[SrcImg][INFO] inspecting image reference ${ref}:" ]]
 	[[ ${lines[7]} =~ "[SrcImg][INFO] calling source collection drivers" ]]
 	# get the number of the last line
 	n=$(expr ${#lines[@]} - 1)
