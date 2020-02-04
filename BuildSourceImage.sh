@@ -446,7 +446,7 @@ push_img() {
 
     _debug "pushing image ${src} to ${dst}"
     ## TODO: check for authfile, creds, and whether it's an insecure registry
-    skopeo copy --dest-tls-verify=false "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")" # XXX for demo only
+    skopeo copy --quiet --dest-tls-verify=false "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")" # XXX for demo only
     #skopeo copy "$(ref_prefix "${src}")" "$(ref_prefix "${dst}")"
     ret=$?
     return $ret
@@ -870,12 +870,12 @@ sourcedriver_rpm_fetch() {
         # TODO one day, check and confirm with %{sourcepkgid}
         # https://bugzilla.redhat.com/show_bug.cgi?id=1741715
         #rpm_sourcepkgid=$(rpm -q --root ${rootfs} --queryformat '%{sourcepkgid}' "${rpm}")
-        srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
-        srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
-        srcrpm_name=$(rpm -qp --qf '%{name}' "${out_dir}"/"${srcrpm}" )
-        srcrpm_version=$(rpm -qp --qf '%{version}' "${out_dir}"/"${srcrpm}" )
-        srcrpm_epoch=$(rpm -qp --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
-        srcrpm_release=$(rpm -qp --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_buildtime=$(rpm -qp --nosignature --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_pkgid=$(rpm -qp --nosignature --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_name=$(rpm -qp --nosignature --qf '%{name}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_version=$(rpm -qp --nosignature --qf '%{version}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_epoch=$(rpm -qp --nosignature --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_release=$(rpm -qp --nosignature --qf '%{release}' "${out_dir}"/"${srcrpm}" )
         mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
         jq \
             -n \
@@ -929,12 +929,12 @@ sourcedriver_rpm_dir() {
             cp "${srcrpm}" "${out_dir}"
             srcrpm="$(basename "${srcrpm}")"
             _debug "[$self] --> ${srcrpm}"
-            srcrpm_buildtime=$(rpm -qp --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
-            srcrpm_pkgid=$(rpm -qp --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
-            srcrpm_name=$(rpm -qp --qf '%{name}' "${out_dir}"/"${srcrpm}" )
-            srcrpm_version=$(rpm -qp --qf '%{version}' "${out_dir}"/"${srcrpm}" )
-            srcrpm_epoch=$(rpm -qp --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
-            srcrpm_release=$(rpm -qp --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_buildtime=$(rpm -qp --nosignature --qf '%{buildtime}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_pkgid=$(rpm -qp --nosignature --qf '%{pkgid}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_name=$(rpm -qp --nosignature --qf '%{name}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_version=$(rpm -qp --nosignature --qf '%{version}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_epoch=$(rpm -qp --nosignature --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_release=$(rpm -qp --nosignature --qf '%{release}' "${out_dir}"/"${srcrpm}" )
             mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
             jq \
                 -n \

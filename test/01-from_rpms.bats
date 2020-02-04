@@ -9,6 +9,7 @@ load helpers
 
 	run_ctr -v $(pwd)/.testprep/srpms/:/src:ro --mount type=bind,source=${d},destination=/output $CTR_IMAGE -s /src -o /output
 	[ "$status" -eq 0 ]
+	echo ${lines}
 	[[ ${lines[0]} =~ "[SrcImg][INFO] calling source collection drivers" ]]
 	# get the number of the last line
 	n=$(expr ${#lines[@]} - 1)
