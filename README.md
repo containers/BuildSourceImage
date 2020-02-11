@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/containers/BuildSourceImage.svg?branch=master)](https://travis-ci.org/containers/BuildSourceImage)
+[![Build Status](https://api.cirrus-ci.com/github/containers/BuildSourceImage.svg)](https://cirrus-ci.com/github/containers/BuildSourceImage/master)
 [![Container Image Repository on Quay](https://quay.io/repository/ctrs/bsi/status "Container Image Repository on Quay")](https://quay.io/repository/ctrs/bsi)
 
 # BuildSourceImage
