@@ -23,12 +23,13 @@ load helpers
 
 	# let's press that the files are predictable
 	[ "$(find ${d} -type f | wc -l)" -eq 7 ]
-	[ -f "${d}/blobs/sha256/549ac1e4eb73e55781f39f4b8ee08c1158f1b1c1a523cf278d602386613e2f12" ]
-	[ -f "${d}/blobs/sha256/b5d5efc6c334cc52223eaea4ac046f21f089c3088b6abb4de027339e5e6dce4b" ]
-	[ -f "${d}/blobs/sha256/ce0608ce0a601a4cac453b0a0e181cac444027d800a26d5b44b80a74c6dc94e8" ]
+	[ -f "${d}/blobs/sha256/4ff0b5eb60927dc1aee6a7080790cfcc50765294b5939ea9e4c59ba1d7c83848" ]
+	[ -f "${d}/blobs/sha256/81a0ee6e731852c9729cb1beb5d195a08671bd72f00f32be3a63c5243ec95f5c" ]
+	[ -f "${d}/blobs/sha256/df4fddb6365e1e652941463dac3054ca58e9302e1bbdc454b611f84fde2e9cdd" ]
 }
 
 @test "build from RPMS and push" {
+	skip "deprecating push/pull. Use 'skopeo' instead."
 	local d
 	d=$(mktemp -d)
 	echo "temporary directory: ${d}"
