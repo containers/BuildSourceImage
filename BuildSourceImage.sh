@@ -836,6 +836,7 @@ sourcedriver_rpm_fetch() {
     local srcrpm_version
     local srcrpm_epoch
     local srcrpm_release
+    local srcrpm_license
     local mimetype
 
     # Get the RELEASEVER from the image
@@ -875,6 +876,7 @@ sourcedriver_rpm_fetch() {
         srcrpm_version=$(rpm -qp --nosignature --qf '%{version}' "${out_dir}"/"${srcrpm}" )
         srcrpm_epoch=$(rpm -qp --nosignature --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
         srcrpm_release=$(rpm -qp --nosignature --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+        srcrpm_license=$(rpm -qp --nosignature --qf '%{license}' "${out_dir}"/"${srcrpm}" )
         mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
         jq \
             -n \
@@ -883,6 +885,7 @@ sourcedriver_rpm_fetch() {
             --arg version "${srcrpm_version}" \
             --arg epoch "${srcrpm_epoch}" \
             --arg release "${srcrpm_release}" \
+            --arg license "${srcrpm_license}" \
             --arg buildtime "${srcrpm_buildtime}" \
             --arg mimetype "${mimetype}" \
             '
@@ -892,6 +895,7 @@ sourcedriver_rpm_fetch() {
                     "source.artifact.version": $version,
                     "source.artifact.epoch": $epoch,
                     "source.artifact.release": $release,
+                    "source.artifact.license": $license,
                     "source.artifact.mimetype": $mimetype,
                     "source.artifact.buildtime": $buildtime
                 }
@@ -920,6 +924,7 @@ sourcedriver_rpm_dir() {
     local srcrpm_version
     local srcrpm_epoch
     local srcrpm_release
+    local srcrpm_license
     local mimetype
 
     if [ -n "${SRPM_DIR}" ]; then
@@ -934,6 +939,7 @@ sourcedriver_rpm_dir() {
             srcrpm_version=$(rpm -qp --nosignature --qf '%{version}' "${out_dir}"/"${srcrpm}" )
             srcrpm_epoch=$(rpm -qp --nosignature --qf '%{epoch}' "${out_dir}"/"${srcrpm}" )
             srcrpm_release=$(rpm -qp --nosignature --qf '%{release}' "${out_dir}"/"${srcrpm}" )
+            srcrpm_license=$(rpm -qp --nosignature --qf '%{license}' "${out_dir}"/"${srcrpm}" )
             mimetype="$(file --brief --mime-type "${out_dir}"/"${srcrpm}")"
             jq \
                 -n \
@@ -942,6 +948,7 @@ sourcedriver_rpm_dir() {
                 --arg version "${srcrpm_version}" \
                 --arg epoch "${srcrpm_epoch}" \
                 --arg release "${srcrpm_release}" \
+                --arg license "${srcrpm_license}" \
                 --arg buildtime "${srcrpm_buildtime}" \
                 --arg mimetype "${mimetype}" \
                 --arg pkgid "${srcrpm_pkgid}" \
@@ -952,6 +959,7 @@ sourcedriver_rpm_dir() {
                         "source.artifact.version": $version,
                         "source.artifact.epoch": $version,
                         "source.artifact.release": $release,
+                        "source.artifact.license": $license,
                         "source.artifact.mimetype": $mimetype,
                         "source.artifact.pkgid": $pkgid,
                         "source.artifact.buildtime": $buildtime
