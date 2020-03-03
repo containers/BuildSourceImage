@@ -41,13 +41,17 @@ _init() {
     set -o pipefail
 
     # check for tools we depend on
-    for cmd in jq skopeo dnf file find tar stat date ; do
+    for cmd in jq skopeo file find tar stat date ; do
         if [ -z "$(command -v ${cmd})" ] ; then
             # TODO: maybe this could be individual checks so it can report
             # where to find the tools
             _error "please install package to provide '${cmd}'"
         fi
     done
+
+    if [ -z "$(command -v dnf)" ] && [ -z "$(command -v yumdownloader)" ] ; then
+        _error "please provide either 'dnf download' or 'yumdownloader'"
+    fi
 }
 
 # enable access to some of functions as subcommands!
