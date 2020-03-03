@@ -737,17 +737,14 @@ layout_insert_bash() {
         --arg tmpconfig_size "${tmpconfig_size}" \
         --arg tmptar_sum "sha256:${tmptar_sum}" \
         --arg tmptar_size "${tmptar_size}" \
-        --arg artifact "$(basename "${artifact_path}")" \
         --arg sum "sha256:${sum}" \
-        --slurpfile annotations_slup "${annotations_file}" \
+        --slurpfile annotations_slurp "${annotations_file}" \
         '
         .config.digest = $tmpconfig_sum
         | .config.size = ($tmpconfig_size|tonumber)
-        | {
-            "com.redhat.layer.type": "source",
-            "com.redhat.layer.content": $artifact,
-            "com.redhat.layer.content.checksum": $sum
-            } + $annotations_slup[0] as $annotations_merge
+        | ( {
+            "source.artifact.filename.checksum": $sum
+            } + $annotations_slurp[0] ) as $annotations_merge
         | .layers += [
             {
                 "mediaType": "application/vnd.oci.image.layer.v1.tar",
@@ -767,6 +764,7 @@ layout_insert_bash() {
     tmpmnfst_sum="$(sha256sum "${tmpmnfst}" | awk '{ ORS=""; print $1 }')"
     tmpmnfst_size="$(_size "${tmpmnfst}")"
     mv "${tmpmnfst}" "${out_dir}/blobs/sha256/${tmpmnfst_sum}"
+    _debug "updated ${out_dir}/blobs/sha256/${tmpmnfst_sum}"
 
     # map the mnfst_list to the new mnfst checksum
     tmpmnfst_list="$(_mktemp)"
@@ -794,6 +792,7 @@ layout_insert_bash() {
         return 1
     fi
     mv "${tmpmnfst_list}" "${mnfst_list}"
+    _debug "manifest-list updated ${mnfst_list}"
 }
 
 

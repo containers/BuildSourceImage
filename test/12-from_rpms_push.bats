@@ -14,6 +14,8 @@ teardown() {
 }
 
 @test "build from RPMS and push to local registry" {
+	skip "deprecating push/pull. Use 'skopeo' instead"
+
 	local d
 	d=$(mktemp -d)
 	echo "temporary directory: ${d}"
