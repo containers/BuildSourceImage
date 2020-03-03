@@ -14,7 +14,7 @@ _version() {
 # output the cli usage and exit
 _usage() {
     _version
-    echo "Usage: $(basename "$0") [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]"
+    echo "Usage: $(basename "$0") [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-p <image>] [-l] [-d <drivers>]"
     echo ""
     echo "          Container Source Image tool"
     echo ""
@@ -25,7 +25,6 @@ _usage() {
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\tenumerate specific source drivers to run"
     echo -e "       -l\t\tlist the source drivers available"
-    echo -e "       -i <image>\timage reference to fetch and inspect its rootfs to derive sources"
     echo -e "       -p <image>\tpush source image to specified reference after build"
     echo -e "       -D\t\tdebuging output. Can be set via DEBUG env variable"
     echo -e "       -h\t\tthis usage information"
@@ -1053,7 +1052,6 @@ main() {
     local base_dir
     local input_context_dir
     local input_extra_src_dir
-    local input_inspect_image_ref
     local input_srpm_dir
     local drivers
     local image_ref
@@ -1075,7 +1073,7 @@ main() {
 
     base_dir="${BASE_DIR:-$(pwd)/${ABV_NAME}}"
     # using the bash builtin to parse
-    while getopts ":hlvDi:c:s:e:o:b:d:p:" opts; do
+    while getopts ":hlvDc:s:e:o:b:d:p:" opts; do
         case "${opts}" in
             b)
                 base_dir="${OPTARG}"
@@ -1092,9 +1090,6 @@ main() {
             h)
                 _usage
                 exit 0
-                ;;
-            i)
-                input_inspect_image_ref=${OPTARG}
                 ;;
             l)
                 list_drivers=1
@@ -1130,7 +1125,7 @@ main() {
 
     # "local" variables are not set in `env`, but are seen in `set`
     if [ "$(set | grep -c '^input_')" -eq 0 ] ; then
-        _error "provide an input (example: $(basename "${0}") -i docker.io/centos -e ./my-sources/ )"
+        _error "provide an input (example: $(basename "${0}") -e ./my-sources/ )"
     fi
 
     # These three variables are slightly special, in that they're globals that
@@ -1156,60 +1151,13 @@ main() {
     image_ref=""
     src_dir=""
     work_dir="${base_dir}/work"
-    if [ -n "${input_inspect_image_ref}" ] ; then
-        _debug "Image Reference provided: ${input_inspect_image_ref}"
-        _debug "Image Reference base: $(parse_img_base "${input_inspect_image_ref}")"
-        _debug "Image Reference tag: $(parse_img_tag "${input_inspect_image_ref}")"
 
-        inspect_image_digest="$(parse_img_digest "${input_inspect_image_ref}")"
-        # determine missing digest before fetch, so that we fetch the precise image
-        # including its digest.
-        if [ -z "${inspect_image_digest}" ] ; then
-            inspect_image_digest="$(fetch_img_digest "$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")")"
-            ret=$?
-            if [ ${ret} -ne 0 ] ; then
-                _error "failed to detect image digest"
-            fi
-        fi
-        _debug "inspect_image_digest: ${inspect_image_digest}"
-
-        img_layout=""
-        # if inspect and fetch image, then to an OCI layout dir
-        if [ ! -d "${work_dir}/layouts/${inspect_image_digest/://}" ] ; then
-            # we'll store the image to a path based on its digest, that it can be reused
-            img_layout="$(fetch_img "$(parse_img_base "${input_inspect_image_ref}")":"$(parse_img_tag "${input_inspect_image_ref}")"@"${inspect_image_digest}" "${work_dir}"/layouts/"${inspect_image_digest/://}" )"
-            ret=$?
-            if [ ${ret} -ne 0 ] ; then
-                _error "failed to copy image: $(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
-            fi
-        else
-            img_layout="${work_dir}/layouts/${inspect_image_digest/://}:$(parse_img_tag "${input_inspect_image_ref}")"
-        fi
-        _debug "image layout: ${img_layout}"
-
-        # unpack or reuse fetched image
-        unpack_dir="${work_dir}/unpacked/${inspect_image_digest/://}"
-        if [ -d "${unpack_dir}" ] ; then
-            _rm_rf "${unpack_dir}"
-        fi
-        unpack_img "${img_layout}" "${unpack_dir}"
-        ret=$?
-        if [ ${ret} -ne 0 ] ; then
-            return ${ret}
-        fi
-
-        rootfs="${unpack_dir}/rootfs"
-        image_ref="$(parse_img_base "${input_inspect_image_ref}"):$(parse_img_tag "${input_inspect_image_ref}")@${inspect_image_digest}"
-        src_dir="${base_dir}/src/${inspect_image_digest/://}"
-        work_dir="${base_dir}/work/${inspect_image_digest/://}"
-        _info "inspecting image reference ${image_ref}"
-    else
         # if we're not fething an image, then this is basically a nop
         rootfs="$(_mktemp_d)"
         image_ref="scratch"
         src_dir="$(_mktemp_d)"
         work_dir="$(_mktemp_d)"
-    fi
+
     _debug "image layout: ${img_layout}"
     _debug "rootfs dir: ${rootfs}"
 
@@ -1272,9 +1220,8 @@ main() {
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
         _mkdir_p "${output_dir}"
-        # XXX this $input_inspect_image_ref currently relies on the user passing in the `-i` flag
-        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${input_inspect_image_ref}")")"
-        _info "copied to oci:$output_dir:$(ref_src_img_tag "$(parse_img_tag "${input_inspect_image_ref}")")"
+        push_img "oci:$src_img_dir:${src_img_tag}" "oci:$output_dir:${src_img_tag}"
+        _info "copied to oci:$output_dir:${src_img_tag}"
     fi
 
     if [ -n "${push_image_ref}" ] ; then

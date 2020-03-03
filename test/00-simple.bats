@@ -27,5 +27,5 @@ load helpers
 @test "No input" {
 	run_ctr $CTR_IMAGE
 	[ "$status" -eq 1 ]
-	[[ ${lines[0]} =~ "[SrcImg][ERROR] provide an input (example: BuildSourceImage.sh -i docker.io/centos -e ./my-sources/ )" ]]
+	[[ ${lines[0]} =~ "[SrcImg][ERROR] provide an input (example: BuildSourceImage.sh -e ./my-sources/ )" ]]
 }
