@@ -11,13 +11,13 @@ srpm_urls	= \
 srpms		= $(addprefix ./.testprep/srpms/,$(notdir $(rpms)))
 
 spec		?= $(pkgname).spec
-pwd		:= $(shell pwd)
+cwd		:= $(shell realpath $(shell dirname $(spec)))
 NAME		:= $(shell rpmspec -q --qf "%{name}" $(spec))
 VERSION		:= $(shell rpmspec -q --qf "%{version}" $(spec))
 RELEASE		:= $(shell rpmspec -q --qf "%{release}" $(spec))
 ARCH		:= $(shell rpmspec -q --qf "%{arch}" $(spec))
 NVR		:= $(NAME)-$(VERSION)-$(RELEASE)
-outdir		?= $(pwd)
+outdir		?= $(cwd)
 
 SHELL_SRC		:= ./BuildSourceImage.sh
 DIST_FILES		:= \
@@ -63,9 +63,9 @@ srpm: $(NVR).src.rpm
 cleanfiles += $(NVR).src.rpm
 $(NVR).src.rpm: $(spec) $(DIST_FILES)
 	rpmbuild \
-                --define '_sourcedir $(pwd)' \
-                --define '_specdir $(pwd)' \
-                --define '_builddir $(pwd)' \
+                --define '_sourcedir $(cwd)' \
+                --define '_specdir $(cwd)' \
+                --define '_builddir $(cwd)' \
                 --define '_srcrpmdir $(outdir)' \
                 --define '_rpmdir $(outdir)' \
                 --nodeps \
@@ -78,9 +78,9 @@ rpm: $(ARCH)/$(NVR).$(ARCH).rpm
 cleanfiles += $(ARCH)/$(NVR).$(ARCH).rpm
 $(ARCH)/$(NVR).$(ARCH).rpm: $(spec) $(DIST_FILES)
 	rpmbuild \
-                --define '_sourcedir $(pwd)' \
-                --define '_specdir $(pwd)' \
-                --define '_builddir $(pwd)' \
+                --define '_sourcedir $(cwd)' \
+                --define '_specdir $(cwd)' \
+                --define '_builddir $(cwd)' \
                 --define '_srcrpmdir $(outdir)' \
                 --define '_rpmdir $(outdir)' \
                 -bb ./$(spec)
