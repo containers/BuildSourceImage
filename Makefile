@@ -10,19 +10,27 @@ srpm_urls	= \
 	https://archive.kernel.org/centos-vault/7.0.1406/os/Source/SPackages/centos-bookmarks-7-1.el7.src.rpm
 srpms		= $(addprefix ./.testprep/srpms/,$(notdir $(rpms)))
 
-spec		?= $(pkgname).spec
-cwd		:= $(shell realpath $(shell dirname $(spec)))
-NAME		:= $(shell rpmspec -q --qf "%{name}" $(spec))
-VERSION		:= $(shell rpmspec -q --qf "%{version}" $(spec))
-RELEASE		:= $(shell rpmspec -q --qf "%{release}" $(spec))
-ARCH		:= $(shell rpmspec -q --qf "%{arch}" $(spec))
-NVR		:= $(NAME)-$(VERSION)-$(RELEASE)
+spec		:= $(pkgname).spec
+cwd		:= $(shell dirname $(shell realpath $(spec)))
+NAME		= $(pkgname)
+ifeq (,$(shell command -v git))
+gitcommit	:= HEAD
+gitdate		:= $(shell date +%s)
+else
+gitcommit	:= $(shell git rev-parse --verify HEAD)
+gitdate		:= $(shell git log -1 --pretty=format:%ct $(gitcommit))
+endif
+VERSION		:= 0.2.0
+RELEASE		= $(shell rpmspec -q --qf "%{release}" $(spec) 2>/dev/null)
+ARCH		= $(shell rpmspec -q --qf "%{arch}" $(spec) 2>/dev/null)
+NVR		= $(NAME)-$(VERSION)-$(RELEASE)
 outdir		?= $(cwd)
 
 SHELL_SRC		:= ./BuildSourceImage.sh
 DIST_FILES		:= \
 	$(SHELL_SRC) \
 	LICENSE \
+	layout.md \
 	README.md
 
 export CTR_IMAGE
@@ -60,6 +68,13 @@ test-integration: .build-container .testprep
 srpm: $(NVR).src.rpm
 	@echo $^
 
+.PHONY: $(spec)
+cleanfiles += $(spec)
+$(spec): $(spec).in
+	sed \
+		's/MYVERSION/$(VERSION)/g; s/GITCOMMIT/$(gitcommit)/g; s/TIMESTAMP/$(gitdate)/g' \
+		$(spec).in > $(spec)
+
 cleanfiles += $(NVR).src.rpm
 $(NVR).src.rpm: $(spec) $(DIST_FILES)
 	rpmbuild \
@@ -69,7 +84,7 @@ $(NVR).src.rpm: $(spec) $(DIST_FILES)
                 --define '_srcrpmdir $(outdir)' \
                 --define '_rpmdir $(outdir)' \
                 --nodeps \
-                -bs ./$(spec)
+                -bs $(spec)
 
 .PHONY: rpm
 rpm: $(ARCH)/$(NVR).$(ARCH).rpm
