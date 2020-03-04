@@ -12,7 +12,7 @@ easier for users to obtain, using the standard OCI protocols and image formats.
 ```bash
 $> ./BuildSourceImage.sh -h
 BuildSourceImage.sh version 0.1
-Usage: BuildSourceImage.sh [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-i <image>] [-p <image>] [-l] [-d <drivers>]
+Usage: BuildSourceImage.sh [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] [-o <path>] [-p <image>] [-l] [-d <drivers>]
 
        -b <path>        base path for source image builds
        -c <path>        build context for the container image. Can be provided via CONTEXT_DIR env variable
@@ -21,7 +21,6 @@ Usage: BuildSourceImage.sh [-D] [-b <path>] [-c <path>] [-e <path>] [-r <path>] 
        -o <path>        output the OCI image to path. Can be provided via OUTPUT_DIR env variable
        -d <drivers>     enumerate specific source drivers to run
        -l               list the source drivers available
-       -i <image>       image reference to fetch and inspect its rootfs to derive sources
        -p <image>       push source image to specified reference after build
        -D               debuging output. Can be set via DEBUG env variable
        -h               this usage information
