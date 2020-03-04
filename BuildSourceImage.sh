@@ -699,7 +699,7 @@ layout_insert_bash() {
     tmptar="$(_mktemp)"
 
     # zero all the things for as consistent blobs as possible
-    _tar -C "${tmpdir}" --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls -cf "${tmptar}" .
+    _tar -C "${tmpdir}" --sort=name --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls -cf "${tmptar}" .
     _rm_rf "${tmpdir}"
 
     # checksum tar and move to blobs/sha256/$checksum
@@ -996,7 +996,7 @@ sourcedriver_context_dir() {
         _debug "$self: writing to $out_dir and $manifest_dir"
         tarname="context.tar"
         _tar -C "${CONTEXT_DIR}" \
-            --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
+            --sort=name --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
         mimetype="$(file --brief --mime-type "${out_dir}"/"${tarname}")"
         source_info="${manifest_dir}/${tarname}.json"
@@ -1037,7 +1037,7 @@ sourcedriver_extra_src_dir() {
         _debug "$self: writing to $out_dir and $manifest_dir"
         tarname="extra-src.tar"
         _tar -C "${EXTRA_SRC_DIR}" \
-            --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
+            --sort=name --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
         mimetype="$(file --brief --mime-type "${out_dir}"/"${tarname}")"
         source_info="${manifest_dir}/${tarname}.json"
