@@ -7,6 +7,9 @@ Group:		containers
 License:	GPLv2
 URL:		https://github.com/containers/BuildSourceImage
 Source0:	BuildSourceImage.sh
+Source1:	LICENSE
+Source2:	README.md
+Source3:	layout.md
 
 #BuildRequires:	
 Requires:	jq
@@ -30,11 +33,18 @@ Requires:	dnf-command(download)
 
 %install
 %{__mkdir_p} %{buildroot}/%{_bindir}
+%{__mkdir_p} %{buildroot}/%{_defaultlicensedir}/%{name}
+%{__mkdir_p} %{buildroot}/%{_defaultdocdir}/%{name}
 %{__install} -T -m 0755 ${RPM_SOURCE_DIR}/BuildSourceImage.sh %{buildroot}/%{_bindir}/BuildSourceImage
+%{__install} -T -m 0644 ${RPM_SOURCE_DIR}/LICENSE %{buildroot}/%{_defaultlicensedir}/%{name}/LICENSE
+%{__install} -T -m 0644 ${RPM_SOURCE_DIR}/README.md %{buildroot}/%{_defaultdocdir}/%{name}/README.md
+%{__install} -T -m 0644 ${RPM_SOURCE_DIR}/layout.md %{buildroot}/%{_defaultdocdir}/%{name}/layout.md
 
 
 %files
-%doc ${RPM_SOURCE_DIR}/LICENSE ${RPM_SOURCE_DIR}/README.md
+%doc %{_defaultlicensedir}/%{name}/LICENSE
+%doc %{_defaultdocdir}/%{name}/README.md
+%doc %{_defaultdocdir}/%{name}/layout.md
 %{_bindir}/BuildSourceImage
 
 
