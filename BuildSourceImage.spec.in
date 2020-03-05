@@ -1,5 +1,8 @@
+%global git_commit              GITCOMMIT
+%global git_shortcommit         %(c=%{git_commit}; echo ${c:0:7})
+
 Name:		BuildSourceImage
-Version:	0.2
+Version:	MYVERSION.TIMESTAMP.git%{git_shortcommit}
 Release:	1%{?dist}
 Summary:	Container Source Image tool
 
@@ -50,4 +53,5 @@ Requires:	dnf-command(download)
 
 
 %changelog
+
 
