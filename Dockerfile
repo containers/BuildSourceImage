@@ -1,4 +1,4 @@
-FROM docker.io/library/fedora:31
+FROM registry.fedoraproject.org/fedora:33
 
 RUN dnf install -y jq skopeo findutils file wget 'dnf-command(download)'
 

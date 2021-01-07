@@ -20,7 +20,7 @@ _usage() {
     echo ""
     echo -e "       -b <path>\tbase path for source image builds"
     echo -e "       -c <path>\tbuild context for the container image. Can be provided via CONTEXT_DIR env variable"
-    echo -e "       -e <path>\textra src for the container image. Can be provided via EXTRA_SRC_DIR env variable"
+    echo -e "       -e <path>\textra src for the container image. Can be provided multiple times"
     echo -e "       -s <path>\tdirectory of SRPMS to add. Can be provided via SRPM_DIR env variable"
     echo -e "       -o <path>\toutput the OCI image to path. Can be provided via OUTPUT_DIR env variable"
     echo -e "       -d <drivers>\tenumerate specific source drivers to run"
@@ -1032,11 +1032,15 @@ sourcedriver_extra_src_dir() {
     local tarname
     local mimetype
     local source_info
+    local counter=0
 
-    if [ -n "${EXTRA_SRC_DIR}" ]; then
+    for extra_src_dir in "${EXTRA_SRC_DIR_ARRAY[@]}"
+    do
+        _info "adding extra source directory $extra_src_dir"
         _debug "$self: writing to $out_dir and $manifest_dir"
-        tarname="extra-src.tar"
-        _tar -C "${EXTRA_SRC_DIR}" \
+        tarname="extra-src-${counter}.tar"
+        counter+=1
+        _tar -C "${extra_src_dir}" \
             --sort=name --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
         mimetype="$(file --brief --mime-type "${out_dir}"/"${tarname}")"
@@ -1056,14 +1060,14 @@ sourcedriver_extra_src_dir() {
         if [ $ret -ne 0 ] ; then
             return 1
         fi
-    fi
+    done
 }
 
 
 main() {
     local base_dir
     local input_context_dir
-    local input_extra_src_dir
+    local input_extra_src_dir_array
     local input_srpm_dir
     local drivers
     local image_ref
@@ -1080,6 +1084,8 @@ main() {
     local unpack_dir
     local work_dir
 
+    declare -a input_extra_src_dir_array
+
     _init "${@}"
     _subcommand "${@}"
 
@@ -1094,7 +1100,7 @@ main() {
                 input_context_dir=${OPTARG}
                 ;;
             e)
-                input_extra_src_dir=${OPTARG}
+                input_extra_src_dir_array+=("${OPTARG}")
                 ;;
             d)
                 drivers=${OPTARG}
@@ -1143,7 +1149,7 @@ main() {
     # These three variables are slightly special, in that they're globals that
     # specific drivers will expect.
     export CONTEXT_DIR="${CONTEXT_DIR:-$input_context_dir}"
-    export EXTRA_SRC_DIR="${EXTRA_SRC_DIR:-$input_extra_src_dir}"
+    export EXTRA_SRC_DIR_ARRAY=("${input_extra_src_dir_array[@]}")
     export SRPM_DIR="${SRPM_DIR:-$input_srpm_dir}"
 
     output_dir="${OUTPUT_DIR:-$output_dir}"
