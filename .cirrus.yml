@@ -12,7 +12,7 @@ env:
     ####
     # GCE project where images live
     IMAGE_PROJECT: "libpod-218412"
-    FEDORA_CACHE_IMAGE_NAME: "fedora-cloud-base-30-1-2-1565360543"
+    FEDORA_CACHE_IMAGE_NAME: "fedora-c6226133906620416"
 
     ####
     #### Command variables to help avoid duplication
@@ -24,7 +24,7 @@ env:
     _RAUDITCMD: 'cat /var/log/audit/audit.log'
     _UAUDITCMD: 'cat /var/log/kern.log'
     _JOURNALCMD: 'journalctl -b'
-    
+
     CONTAINER: "false"
 
 gcp_credentials: ENCRYPTED[069aa0c73f34f33fde83379af6290e67f316115e18f4ee698743323f272220f445895487ed21a1db5173eb1a8d8f84f0]
