@@ -31,9 +31,9 @@ teardown() {
 
 	# let's press that the files are predictable
 	[ "$(find ${d} -type f | wc -l)" -eq 7 ]
-	[ -f "${d}/blobs/sha256/549ac1e4eb73e55781f39f4b8ee08c1158f1b1c1a523cf278d602386613e2f12" ]
-	[ -f "${d}/blobs/sha256/b5d5efc6c334cc52223eaea4ac046f21f089c3088b6abb4de027339e5e6dce4b" ]
-	[ -f "${d}/blobs/sha256/ce0608ce0a601a4cac453b0a0e181cac444027d800a26d5b44b80a74c6dc94e8" ]
+	[ -f "${d}/blobs/sha256/5266b3106c38b4535e314ff52faa3bcf1e9c8256738469381e147c81d700201a" ]
+	[ -f "${d}/blobs/sha256/56fb92b015150dd20c581f3a15035a67bc017f41d3115e9ce526a760e27acdfb" ]
+	[ -f "${d}/blobs/sha256/6fd6b2113b8afdd00c25585f75330039981ad3d59a63c5f7d45707f1bdc7bafe" ]
 
 	# now let's pull the image with skopeo
 	mkdir ${d}/pull

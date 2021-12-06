@@ -1,6 +1,6 @@
-FROM registry.fedoraproject.org/fedora:33
+FROM quay.io/skopeo/stable
 
-RUN dnf install -y jq skopeo findutils file wget 'dnf-command(download)'
+RUN dnf install -y jq findutils file wget 'dnf-command(download)'
 
 COPY ./BuildSourceImage.sh /usr/local/bin/BuildSourceImage.sh
 

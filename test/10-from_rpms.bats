@@ -23,9 +23,9 @@ load helpers
 
 	# let's press that the files are predictable
 	[ "$(find ${d} -type f | wc -l)" -eq 7 ]
-	[ -f "${d}/blobs/sha256/0a7d6bf1ec0c131b804cc85018b998988b39b66594db73475cf21adb54ab77d5" ]
-	[ -f "${d}/blobs/sha256/b890aaedaf242fa7b42a467cffa2ead943171f34c4d81d566c198829f4e16e00" ]
-	[ -f "${d}/blobs/sha256/e4d273091c8390bedb25ed76271faf1ef24d4456453b0a4eb305b0d202b9c3c6" ]
+	[ -f "${d}/blobs/sha256/5266b3106c38b4535e314ff52faa3bcf1e9c8256738469381e147c81d700201a" ]
+	[ -f "${d}/blobs/sha256/56fb92b015150dd20c581f3a15035a67bc017f41d3115e9ce526a760e27acdfb" ]
+	[ -f "${d}/blobs/sha256/6fd6b2113b8afdd00c25585f75330039981ad3d59a63c5f7d45707f1bdc7bafe" ]
 }
 
 @test "build from RPMS and push" {
