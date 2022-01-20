@@ -1235,6 +1235,9 @@ main() {
     _info "succesfully packed 'oci:${src_img_dir}:${src_img_tag}'"
     _debug "$(skopeo inspect oci:"${src_img_dir}":"${src_img_tag}")"
 
+    # dir isn't used anymore but contains all rpms which take space
+    _rm_rf "${src_dir}"
+
     ## if an output directory is provided then save a copy to it
     if [ -n "${output_dir}" ] ; then
         _mkdir_p "${output_dir}"
