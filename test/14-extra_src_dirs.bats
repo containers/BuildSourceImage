@@ -29,6 +29,6 @@ load helpers
 
 	# let's press that the files are predictable
 	[ "$(find ${d} -type f | wc -l)" -eq 6 ]
-	[ -f "${d}/blobs/sha256/10e939fbfffa22f0906a1713d249ac13f0ff566e5f58af1fb8b25df8c5676796" ]
-	[ -f "${d}/blobs/sha256/d9645436b23e5647fb59c293fe46bfb2a0367090e9b15b1b222505362f60b929" ]
+	[ -f "${d}/blobs/sha256/124edef61b84f2d3562d33780906711943c04b882468840f80bb0c7b11046a1a" ]
+	[ -f "${d}/blobs/sha256/9284ecf9d6e9e677b8deb2fa5d7d9aa363bda15e8fd84352241083b94b639b68" ]
 }
