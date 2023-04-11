@@ -12,7 +12,7 @@ env:
     ####
     # GCE project where images live
     IMAGE_PROJECT: "libpod-218412"
-    FEDORA_CACHE_IMAGE_NAME: "fedora-c4987131005763584"
+    FEDORA_CACHE_IMAGE_NAME: "fedora-c20230405t152256z-f37f36d12"
 
     ####
     #### Command variables to help avoid duplication
