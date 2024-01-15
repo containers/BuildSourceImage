@@ -1039,7 +1039,7 @@ sourcedriver_extra_src_dir() {
         _info "adding extra source directory $extra_src_dir"
         _debug "$self: writing to $out_dir and $manifest_dir"
         tarname="extra-src-${counter}.tar"
-        counter+=1
+        ((counter+=1))
         _tar -C "${extra_src_dir}" \
             --sort=name --mtime=@0 --owner=0 --group=0 --mode='a+rw' --no-xattrs --no-selinux --no-acls \
             -cf "${out_dir}/${tarname}" .
